@@ -18,9 +18,56 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 #endif /* NANOEM_ENABLE_LOGGING */
 
+#if defined(SOKOL_GLCORE33)
+#include <dlfcn.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#endif /* SOKOL_GLCORE33 */
+
 using namespace nanoem;
 
 namespace {
+
+#if defined(SOKOL_GLCORE33)
+/* the GL entry points are resolved at runtime by the sokol loader, so this diagnostic has to look
+ * the one it needs up the same way instead of linking against libGL */
+static void
+logOpenGLContextInformation()
+{
+    enum {
+        /* GL_VENDOR, GL_RENDERER and GL_VERSION, spelled out so no GL header is needed here */
+        kGLVendor = 0x1F00,
+        kGLRenderer = 0x1F01,
+        kGLVersion = 0x1F02
+    };
+    typedef const unsigned char *(*GetStringProc)(unsigned int);
+    GetStringProc getString = reinterpret_cast<GetStringProc>(dlsym(RTLD_DEFAULT, "glGetString"));
+    if (!getString) {
+        /* sokol loads libGL with RTLD_GLOBAL once the window exists, dlopen it as fallback */
+        void *library = dlopen("libGL.so.1", RTLD_LAZY | RTLD_GLOBAL);
+        getString = library ? reinterpret_cast<GetStringProc>(dlsym(library, "glGetString")) : nullptr;
+    }
+    const char *kUnknown = "(unavailable)";
+    const char *vendor = getString ? reinterpret_cast<const char *>(getString(kGLVendor)) : nullptr;
+    const char *renderer = getString ? reinterpret_cast<const char *>(getString(kGLRenderer)) : nullptr;
+    const char *version = getString ? reinterpret_cast<const char *>(getString(kGLVersion)) : nullptr;
+    fprintf(stderr, "[nanoem] OpenGL vendor  : %s\n[nanoem] OpenGL renderer: %s\n[nanoem] OpenGL version : %s\n",
+        vendor ? vendor : kUnknown, renderer ? renderer : kUnknown, version ? version : kUnknown);
+    const bool softwareRenderer = renderer && (strstr(renderer, "llvmpipe") || strstr(renderer, "Software Rasterizer"));
+    /* an NVIDIA driver being installed but not being the one GL renders with is the usual reason
+     * nvidia-smi stays at 0% while the application is busy */
+    const bool nvidiaDriverPresent = access("/proc/driver/nvidia/version", F_OK) == 0;
+    const bool nvidiaIdle = nvidiaDriverPresent && !(renderer && strstr(renderer, "NVIDIA"));
+    if (softwareRenderer || nvidiaIdle) {
+        fprintf(stderr,
+            "[nanoem] the viewport does not render on the NVIDIA GPU (%s),\n"
+            "[nanoem] start it with __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia\n"
+            "[nanoem] to render there (prefix the command line with both)\n",
+            softwareRenderer ? "software rasterizer" : (renderer ? renderer : "unknown renderer"));
+    }
+}
+#endif /* SOKOL_GLCORE33 */
 
 class ApplicationState NANOEM_DECL_SEALED : private NonCopyable {
 public:
@@ -126,6 +173,11 @@ sokol_main(int argc, char *argv[])
     desc.init_userdata_cb = [](void *userData) {
         auto state = static_cast<ApplicationState *>(userData);
         BaseApplicationService::setup();
+#if defined(SOKOL_GLCORE33)
+        /* the GL implementation decides where the viewport is rendered, and therefore where the
+         * frames the video exporter reads back come from */
+        logOpenGLContextInformation();
+#endif /* SOKOL_GLCORE33 */
         state->initialize();
     };
     desc.event_userdata_cb = [](const sapp_event *event, void *userData) {

@@ -62,8 +62,13 @@ findEncoderByName(const char *const *names, nanoem_rsize_t length)
 /* the registry order of avcodec_find_encoder() differs between ffmpeg builds, so resolve the
  * lossy codecs by their actual encoder name first and only fall back to the registry */
 static const AVCodec *
-findVideoEncoder(AVCodecID id)
+findVideoEncoder(AVCodecID id, const char *requested)
 {
+    if (requested && requested[0] != '\0') {
+        /* a fixed encoder (a GPU one) is only usable when this build really has it, it must never
+         * silently fall back to another implementation than the one the user picked */
+        return avcodec_find_encoder_by_name(requested);
+    }
     switch (id) {
     case AV_CODEC_ID_AV1: {
         static const char *kNames[] = { "libaom-av1", "libsvtav1", "librav1e" };
@@ -106,17 +111,22 @@ preferredSampleFormat(const AVCodec *codec, AVSampleFormat fallback)
 }
 
 /* the containers that can store each video codec (verified against ffmpeg's muxers); raw RGB
- * video is rejected by both Matroska and MP4, and UT Video has no MP4 sample entry */
+ * video is rejected by both Matroska and MP4, UT Video has no MP4 sample entry, and ffmpeg's AVI
+ * muxer has no fourcc for HEVC, which makes the written stream unreadable */
 static const char *const *
 containerExtensionsFor(AVCodecID id, nanoem_u32_t *length)
 {
     static const char *kMP4AndMKVAndAVI[] = { "mp4", "mkv", "avi" };
+    static const char *kMP4AndMKV[] = { "mp4", "mkv" };
     static const char *kMKVAndAVI[] = { "mkv", "avi" };
     static const char *kAVI[] = { "avi" };
     switch (id) {
     case AV_CODEC_ID_RAWVIDEO:
         *length = sizeof(kAVI) / sizeof(kAVI[0]);
         return kAVI;
+    case AV_CODEC_ID_HEVC:
+        *length = sizeof(kMP4AndMKV) / sizeof(kMP4AndMKV[0]);
+        return kMP4AndMKV;
     case AV_CODEC_ID_UTVIDEO:
         *length = sizeof(kMKVAndAVI) / sizeof(kMKVAndAVI[0]);
         return kMKVAndAVI;
@@ -132,6 +142,8 @@ availableContainerExtensions(AVCodecID id)
     switch (id) {
     case AV_CODEC_ID_RAWVIDEO:
         return "avi";
+    case AV_CODEC_ID_HEVC:
+        return "mp4, mkv";
     case AV_CODEC_ID_UTVIDEO:
         return "mkv, avi";
     default:
@@ -157,6 +169,7 @@ struct FFmpegEncoder {
         , m_tempAudioBuffer(nullptr)
         , m_audioCodecID(AV_CODEC_ID_PCM_S16LE)
         , m_videoCodecID(AV_CODEC_ID_AV1)
+        , m_videoEncoderName(nullptr)
         , m_videoPixelFormat(AV_PIX_FMT_YUV420P)
         , m_videoCodecIndex(0)
         , m_videoPixelFormatIndex(0)
@@ -243,9 +256,11 @@ struct FFmpegEncoder {
     int
     openVideoCodec()
     {
-        const AVCodec *codec = findVideoEncoder(m_videoCodecID);
+        const AVCodec *codec = findVideoEncoder(m_videoCodecID, m_videoEncoderName);
         if (!codec) {
-            setFailureReason("The selected video codec is not available in this FFmpeg build");
+            setFailureReason(m_videoEncoderName && m_videoEncoderName[0] != '\0'
+                    ? "The selected GPU encoder is not available in this FFmpeg build"
+                    : "The selected video codec is not available in this FFmpeg build");
             return AVERROR(ENOSYS);
         }
         if ((m_videoStream = avformat_new_stream(m_formatContext, codec)) != nullptr) {
@@ -259,10 +274,12 @@ struct FFmpegEncoder {
             if ((m_formatContext->oformat->flags & AVFMT_GLOBALHEADER) != 0) {
                 m_videoCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
             }
-            if (m_videoCodecID == AV_CODEC_ID_AV1 || m_videoCodecID == AV_CODEC_ID_H264) {
-                /* without an explicit bit rate both libaom-av1 and libx264 fall back to a quality
-                 * mode that either ignores the requested size or produces effectively lossless
-                 * output, so derive ~0.1 bits per pixel from the configured frame rate */
+            if (m_videoCodecID == AV_CODEC_ID_AV1 || m_videoCodecID == AV_CODEC_ID_H264 ||
+                m_videoCodecID == AV_CODEC_ID_HEVC) {
+                /* without an explicit bit rate both the software encoders and the GPU ones fall
+                 * back to a quality mode that either ignores the requested size or produces
+                 * effectively lossless output, so derive ~0.1 bits per pixel from the configured
+                 * frame rate */
                 const nanoem_u64_t fps = m_fps > 0 ? m_fps : 60;
                 const nanoem_u64_t bitRate =
                     std::max<nanoem_u64_t>(static_cast<nanoem_u64_t>(m_width) * m_height * fps / 10, 200000);
@@ -561,29 +578,41 @@ struct FFmpegEncoder {
         struct Candidate {
             const char *label;
             AVCodecID id;
+            /* nullptr selects the best software encoder of the codec, otherwise the encoder that
+             * has to be used (the GPU encoders of this build) */
+            const char *encoder;
         };
+        /* AV1 is not offered as a GPU encoder: the hardware this targets has no AV1 encoder, and
+         * offering one that only exists in the ffmpeg build would fail as soon as it is used */
         static const Candidate kCandidates[] = {
-            { "AV1", AV_CODEC_ID_AV1 },
-            { "H.264", AV_CODEC_ID_H264 },
-            { "Raw Video", AV_CODEC_ID_RAWVIDEO },
-            { "UT Codec Video", AV_CODEC_ID_UTVIDEO },
+            { "AV1", AV_CODEC_ID_AV1, nullptr },
+            { "H.264", AV_CODEC_ID_H264, nullptr },
+            { "H.264 (NVENC, GPU)", AV_CODEC_ID_H264, "h264_nvenc" },
+            { "HEVC (NVENC, GPU)", AV_CODEC_ID_HEVC, "hevc_nvenc" },
+            { "Raw Video", AV_CODEC_ID_RAWVIDEO, nullptr },
+            { "UT Codec Video", AV_CODEC_ID_UTVIDEO, nullptr },
         };
         m_videoCodecLabels.clear();
         m_videoCodecIDs.clear();
+        m_videoEncoderNames.clear();
         for (nanoem_rsize_t i = 0; i < sizeof(kCandidates) / sizeof(kCandidates[0]); i++) {
             /* only offer codecs the running ffmpeg build can actually encode with */
-            if (findVideoEncoder(kCandidates[i].id)) {
+            if (findVideoEncoder(kCandidates[i].id, kCandidates[i].encoder)) {
                 m_videoCodecLabels.push_back(kCandidates[i].label);
                 m_videoCodecIDs.push_back(kCandidates[i].id);
+                m_videoEncoderNames.push_back(kCandidates[i].encoder);
             }
         }
         if (m_videoCodecIDs.empty()) {
             m_videoCodecLabels.push_back("Raw Video");
             m_videoCodecIDs.push_back(AV_CODEC_ID_RAWVIDEO);
+            m_videoEncoderNames.push_back(nullptr);
         }
         if (m_videoCodecIndex >= m_videoCodecIDs.size()) {
             m_videoCodecIndex = 0;
         }
+        m_videoCodecID = m_videoCodecIDs[m_videoCodecIndex];
+        m_videoEncoderName = m_videoEncoderNames[m_videoCodecIndex];
     }
     void
     buildSelectablePixelFormats()
@@ -611,10 +640,21 @@ struct FFmpegEncoder {
             { "YUV422P", AV_PIX_FMT_YUV422P },
             { "YUV444P", AV_PIX_FMT_YUV444P },
         };
+        static const Candidate kNVENCPixelFormats[] = {
+            { "YUV420P", AV_PIX_FMT_YUV420P },
+        };
         const AVCodecID codecID = m_videoCodecIDs[m_videoCodecIndex];
+        const char *encoder = m_videoCodecIndex < m_videoEncoderNames.size() ? m_videoEncoderNames[m_videoCodecIndex]
+                                                                             : nullptr;
+        const bool gpuEncoder = encoder && strstr(encoder, "_nvenc") != nullptr;
         const Candidate *candidates = nullptr;
         nanoem_rsize_t numCandidates = 0;
-        if (codecID == AV_CODEC_ID_AV1 || codecID == AV_CODEC_ID_H264) {
+        if (gpuEncoder) {
+            /* the NVENC encoders of this generation only take 8 bit 4:2:0 input */
+            candidates = kNVENCPixelFormats;
+            numCandidates = sizeof(kNVENCPixelFormats) / sizeof(kNVENCPixelFormats[0]);
+        }
+        else if (codecID == AV_CODEC_ID_AV1 || codecID == AV_CODEC_ID_H264) {
             /* both encoders only take YUV input */
             candidates = kYUVPixelFormats;
             numCandidates = sizeof(kYUVPixelFormats) / sizeof(kYUVPixelFormats[0]);
@@ -703,6 +743,7 @@ struct FFmpegEncoder {
                     m_videoCodecIndex = index;
                     if (index < m_videoCodecIDs.size()) {
                         m_videoCodecID = m_videoCodecIDs[index];
+                        m_videoEncoderName = index < m_videoEncoderNames.size() ? m_videoEncoderNames[index] : nullptr;
                     }
                     /* the pixel format candidates depend on the codec, so reset the selection and
                      * let the dialog rebuild this window with the new list */
@@ -822,6 +863,7 @@ struct FFmpegEncoder {
     ComponentList m_components;
     std::vector<const char *> m_videoCodecLabels;
     std::vector<AVCodecID> m_videoCodecIDs;
+    std::vector<const char *> m_videoEncoderNames;
     std::vector<const char *> m_pixelFormatLabels;
     std::vector<AVPixelFormat> m_pixelFormats;
     AVFormatContext *m_formatContext;
@@ -834,6 +876,7 @@ struct FFmpegEncoder {
     nanoem_f32_t *m_tempAudioBuffer;
     AVCodecID m_audioCodecID;
     AVCodecID m_videoCodecID;
+    const char *m_videoEncoderName;
     AVPixelFormat m_videoPixelFormat;
     nanoem_u32_t m_videoCodecIndex;
     nanoem_u32_t m_videoPixelFormatIndex;
