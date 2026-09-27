@@ -829,6 +829,188 @@ DrawUtils::drawVertexWeightPainter(
     primitive->fillCircle(Vector4(center.x - radius, center.y - radius, extent, extent), Vector4(kColorRed, 0.5));
 }
 
+/*
+ * Visual Studio style (dark) colour scheme.
+ *
+ * Dear ImGui has no style sheet, so the palette is applied here in code. Every highlighted value
+ * can be overridden from the persisted application configuration file
+ * (Linux: ~/.config/nanoem/config.json) without recompiling:
+ *
+ *   "ui": { "theme": { "accent": "#007ACC", "background": "#252526", "editor": "#1E1E1E",
+ *                      "text": "#CCCCCC", "rounding": 4 } }
+ */
+static ImVec4
+nanoemColor(nanoem_u32_t rgb, nanoem_f32_t alpha = 1.0f)
+{
+    return ImVec4(((rgb >> 16) & 0xff) / 255.0f, ((rgb >> 8) & 0xff) / 255.0f, (rgb & 0xff) / 255.0f, alpha);
+}
+
+static nanoem_i32_t
+nanoemHexDigitValue(char value)
+{
+    nanoem_i32_t digit;
+    if (value >= '0' && value <= '9') {
+        digit = value - '0';
+    }
+    else if (value >= 'a' && value <= 'f') {
+        digit = value - 'a' + 10;
+    }
+    else if (value >= 'A' && value <= 'F') {
+        digit = value - 'A' + 10;
+    }
+    else {
+        digit = -1;
+    }
+    return digit;
+}
+
+static bool
+nanoemParseColor(const char *value, ImVec4 &output)
+{
+    bool parsed = false;
+    if (value && value[0] == '#') {
+        const char *digits = value + 1;
+        nanoem_rsize_t length = 0;
+        while (digits[length] != '\0') {
+            length++;
+        }
+        if (length == 6 || length == 8) {
+            const nanoem_i32_t r0 = nanoemHexDigitValue(digits[0]), r1 = nanoemHexDigitValue(digits[1]),
+                               g0 = nanoemHexDigitValue(digits[2]), g1 = nanoemHexDigitValue(digits[3]),
+                               b0 = nanoemHexDigitValue(digits[4]), b1 = nanoemHexDigitValue(digits[5]),
+                               a0 = length == 8 ? nanoemHexDigitValue(digits[6]) : 15,
+                               a1 = length == 8 ? nanoemHexDigitValue(digits[7]) : 15;
+            if (r0 >= 0 && r1 >= 0 && g0 >= 0 && g1 >= 0 && b0 >= 0 && b1 >= 0 && a0 >= 0 && a1 >= 0) {
+                output = ImVec4(((r0 << 4) | r1) / 255.0f, ((g0 << 4) | g1) / 255.0f, ((b0 << 4) | b1) / 255.0f,
+                    ((a0 << 4) | a1) / 255.0f);
+                parsed = true;
+            }
+        }
+    }
+    return parsed;
+}
+
+static void
+nanoemOverrideThemeColor(const JSON_Value *configuration, const char *key, ImVec4 &color)
+{
+    if (configuration) {
+        const JSON_Object *root = json_object(configuration);
+        if (root) {
+            if (const char *value = json_object_dotget_string(root, key)) {
+                nanoemParseColor(value, color);
+            }
+        }
+    }
+}
+
+static nanoem_f32_t
+nanoemThemeRounding(const JSON_Value *configuration)
+{
+    nanoem_f32_t rounding = 4.0f;
+    if (configuration) {
+        const JSON_Object *root = json_object(configuration);
+        if (root) {
+            const double value = json_object_dotget_number(root, "ui.theme.rounding");
+            if (value > 0) {
+                rounding = static_cast<nanoem_f32_t>(value);
+            }
+        }
+    }
+    return rounding;
+}
+
+static void
+applyVisualStudioStyle(ImGuiStyle &style, const JSON_Value *configuration)
+{
+    const nanoem_f32_t rounding = nanoemThemeRounding(configuration);
+    /* violet accent, matching the Visual Studio colour theme of the reference screenshot */
+    ImVec4 accent = nanoemColor(0x9B4FD4), background = nanoemColor(0x252526),
+           editor = nanoemColor(0x1E1E1E), text = nanoemColor(0xCCCCCC);
+    nanoemOverrideThemeColor(configuration, "ui.theme.accent", accent);
+    nanoemOverrideThemeColor(configuration, "ui.theme.background", background);
+    nanoemOverrideThemeColor(configuration, "ui.theme.editor", editor);
+    nanoemOverrideThemeColor(configuration, "ui.theme.text", text);
+    const ImVec4 chrome = nanoemColor(0x2D2D30), border = nanoemColor(0x3F3F46),
+                  textDisabled = nanoemColor(0x717171), input = nanoemColor(0x3C3C3C),
+                  inputHovered = nanoemColor(0x4E4E4E), selection = nanoemColor(0x3A2263),
+                  textSelection = nanoemColor(0x4B2E83, 0.85f), accentHovered = nanoemColor(0xB077E4),
+                  accentActive = nanoemColor(0x7C3FB8), tabHovered = nanoemColor(0x3E3E40),
+                  headerHovered = nanoemColor(0x4A2E7E), tableHeader = nanoemColor(0x3C3C3C),
+                  scrollbar = nanoemColor(0x424242), scrollbarHovered = nanoemColor(0x5A5A5A),
+                  scrollbarActive = nanoemColor(0x6A6A6A);
+    style.WindowPadding = ImVec2(10, 10);
+    style.FramePadding = ImVec2(7, 4);
+    style.ItemSpacing = ImVec2(7, 5);
+    style.ItemInnerSpacing = ImVec2(5, 3);
+    style.IndentSpacing = 18;
+    style.ScrollbarSize = 12;
+    style.WindowBorderSize = 1;
+    style.ChildBorderSize = 1;
+    style.PopupBorderSize = 1;
+    style.FrameBorderSize = 1;
+    style.WindowRounding = rounding;
+    style.ChildRounding = 0;
+    style.PopupRounding = rounding;
+    style.FrameRounding = 2;
+    style.GrabRounding = 2;
+    style.ScrollbarRounding = 2;
+    style.TabRounding = 0;
+    style.WindowMenuButtonPosition = ImGuiDir_None;
+    ImVec4 *colors = style.Colors;
+    colors[ImGuiCol_Text] = text;
+    colors[ImGuiCol_TextDisabled] = textDisabled;
+    colors[ImGuiCol_WindowBg] = background;
+    colors[ImGuiCol_ChildBg] = editor;
+    colors[ImGuiCol_PopupBg] = chrome;
+    colors[ImGuiCol_Border] = border;
+    colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
+    colors[ImGuiCol_FrameBg] = input;
+    colors[ImGuiCol_FrameBgHovered] = inputHovered;
+    colors[ImGuiCol_FrameBgActive] = selection;
+    colors[ImGuiCol_TitleBg] = background;
+    colors[ImGuiCol_TitleBgActive] = chrome;
+    colors[ImGuiCol_TitleBgCollapsed] = chrome;
+    colors[ImGuiCol_MenuBarBg] = chrome;
+    colors[ImGuiCol_ScrollbarBg] = nanoemColor(0x1E1E1E, 0.85f);
+    colors[ImGuiCol_ScrollbarGrab] = scrollbar;
+    colors[ImGuiCol_ScrollbarGrabHovered] = scrollbarHovered;
+    colors[ImGuiCol_ScrollbarGrabActive] = scrollbarActive;
+    colors[ImGuiCol_CheckMark] = accent;
+    colors[ImGuiCol_SliderGrab] = accent;
+    colors[ImGuiCol_SliderGrabActive] = accentHovered;
+    /* Visual Studio keeps its buttons flat: grey until hovered, accent only while pressed */
+    colors[ImGuiCol_Button] = input;
+    colors[ImGuiCol_ButtonHovered] = inputHovered;
+    colors[ImGuiCol_ButtonActive] = selection;
+    colors[ImGuiCol_Header] = selection;
+    colors[ImGuiCol_HeaderHovered] = headerHovered;
+    colors[ImGuiCol_HeaderActive] = accentActive;
+    colors[ImGuiCol_Separator] = border;
+    colors[ImGuiCol_SeparatorHovered] = accent;
+    colors[ImGuiCol_SeparatorActive] = accentHovered;
+    colors[ImGuiCol_ResizeGrip] = input;
+    colors[ImGuiCol_ResizeGripHovered] = accent;
+    colors[ImGuiCol_ResizeGripActive] = accentHovered;
+    colors[ImGuiCol_Tab] = chrome;
+    colors[ImGuiCol_TabHovered] = tabHovered;
+    colors[ImGuiCol_TabActive] = editor;
+    colors[ImGuiCol_TabUnfocused] = chrome;
+    colors[ImGuiCol_TabUnfocusedActive] = editor;
+    colors[ImGuiCol_PlotLines] = text;
+    colors[ImGuiCol_PlotHistogram] = accent;
+    colors[ImGuiCol_TableHeaderBg] = tableHeader;
+    colors[ImGuiCol_TableBorderStrong] = border;
+    colors[ImGuiCol_TableBorderLight] = border;
+    colors[ImGuiCol_TableRowBg] = editor;
+    colors[ImGuiCol_TableRowBgAlt] = background;
+    colors[ImGuiCol_TextSelectedBg] = textSelection;
+    colors[ImGuiCol_DragDropTarget] = accent;
+    colors[ImGuiCol_NavHighlight] = accent;
+    colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1, 1, 1, 0.7f);
+    colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0, 0, 0, 0.6f);
+    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0, 0, 0, 0.6f);
+}
+
 } /* namespace anonymous */
 
 using namespace imgui;
@@ -836,7 +1018,7 @@ using namespace imgui;
 const Vector2UI16 ImGuiWindow::kMinimumMainWindowSize = Vector2UI16(1080, 700);
 const Vector2UI16 ImGuiWindow::kMinimumViewportWindowSize = Vector2UI16(720, 480);
 const nanoem_f32_t ImGuiWindow::kFontSize = 16.0f;
-const nanoem_f32_t ImGuiWindow::kWindowRounding = 5.0f;
+const nanoem_f32_t ImGuiWindow::kWindowRounding = 3.0f;
 const nanoem_f32_t ImGuiWindow::kLeftPaneWidth = 150.0f;
 const nanoem_f32_t ImGuiWindow::kTranslationStepFactor = 0.1f;
 const nanoem_f32_t ImGuiWindow::kOrientationStepFactor = 0.1f;
@@ -852,37 +1034,44 @@ const nanoem_f32_t ImGuiWindow::kModelEditCommandWidth = 270.0f;
 const nanoem_f32_t ImGuiWindow::kDrawCircleSegmentCount = 24.0f;
 const ImGuiDataType ImGuiWindow::kFrameIndexDataType = ImGuiDataType_U32;
 const ImU32 ImGuiWindow::kMainWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBringToFrontOnFocus;
-const ImU32 ImGuiWindow::kColorWindowBg = IM_COL32(45, 45, 45, 255);
-const ImU32 ImGuiWindow::kColorMenuBarBg = IM_COL32(45, 45, 45, 255);
-const ImU32 ImGuiWindow::kColorTitleBg = IM_COL32(40, 40, 40, 255);
-const ImU32 ImGuiWindow::kColorTitleBgActive = IM_COL32(65, 65, 65, 255);
-const ImU32 ImGuiWindow::kColorTab = IM_COL32(40, 40, 40, 255);
-const ImU32 ImGuiWindow::kColorTabActive = IM_COL32(65, 65, 65, 255);
-const ImU32 ImGuiWindow::kColorTabHovered = IM_COL32(80, 80, 80, 255);
-const ImU32 ImGuiWindow::kColorResizeGrip = IM_COL32(65, 65, 65, 255);
-const ImU32 ImGuiWindow::kColorResizeGripHovered = IM_COL32(88, 88, 88, 255);
-const ImU32 ImGuiWindow::kColorResizeGripActive = IM_COL32(127, 127, 127, 255);
-const ImU32 ImGuiWindow::kColorChildBg = IM_COL32(45, 45, 45, 255);
-const ImU32 ImGuiWindow::kColorPopupBg = IM_COL32(45, 45, 45, 255);
-const ImU32 ImGuiWindow::kColorBorder = IM_COL32(65, 65, 65, 255);
-const ImU32 ImGuiWindow::kColorText = IM_COL32(175, 175, 175, 255);
-const ImU32 ImGuiWindow::kColorTextDisabled = IM_COL32(88, 88, 88, 255);
-const ImU32 ImGuiWindow::kColorButton = IM_COL32(50, 50, 50, 255);
-const ImU32 ImGuiWindow::kColorButtonActive = IM_COL32(35, 35, 35, 255);
-const ImU32 ImGuiWindow::kColorButtonHovered = IM_COL32(40, 40, 40, 255);
-const ImU32 ImGuiWindow::kColorFrameBg = IM_COL32(50, 50, 50, 255);
-const ImU32 ImGuiWindow::kColorFrameBgActive = IM_COL32(35, 35, 35, 255);
-const ImU32 ImGuiWindow::kColorFrameBgHovered = IM_COL32(40, 40, 40, 255);
-const ImU32 ImGuiWindow::kColorHeader = IM_COL32(50, 50, 50, 255);
-const ImU32 ImGuiWindow::kColorHeaderActive = IM_COL32(35, 35, 35, 255);
-const ImU32 ImGuiWindow::kColorHeaderHovered = IM_COL32(40, 40, 40, 255);
-const ImU32 ImGuiWindow::kColorCheckMark = IM_COL32(150, 150, 150, 255);
-const ImU32 ImGuiWindow::kColorSliderGrab = IM_COL32(100, 100, 100, 255);
-const ImU32 ImGuiWindow::kColorSliderGrabActive = IM_COL32(150, 150, 150, 255);
-const ImU32 ImGuiWindow::kColorScrollbarBg = IM_COL32(40, 40, 40, 255);
-const ImU32 ImGuiWindow::kColorScrollbarGrab = IM_COL32(100, 100, 100, 255);
-const ImU32 ImGuiWindow::kColorScrollbarGrabActive = IM_COL32(150, 150, 150, 255);
-const ImU32 ImGuiWindow::kColorScrollbarGrabHovered = IM_COL32(120, 120, 120, 255);
+/*
+ * Visual Studio (2022) dark palette with the violet accent.
+ *
+ * These are the colours pushed by saveDefaultStyle() for every frame, so they are the ones the
+ * user actually sees. They must stay in sync with applyVisualStudioStyle() above, which themes
+ * ImGui::GetStyle() as well as the value overrides of the "ui.theme.*" configuration keys.
+ */
+const ImU32 ImGuiWindow::kColorWindowBg = IM_COL32(37, 37, 38, 255); /* #252526 panel background */
+const ImU32 ImGuiWindow::kColorMenuBarBg = IM_COL32(45, 45, 48, 255); /* #2D2D30 title/menu chrome */
+const ImU32 ImGuiWindow::kColorTitleBg = IM_COL32(37, 37, 38, 255); /* #252526 unfocused caption */
+const ImU32 ImGuiWindow::kColorTitleBgActive = IM_COL32(45, 45, 48, 255); /* #2D2D30 focused caption */
+const ImU32 ImGuiWindow::kColorTab = IM_COL32(45, 45, 48, 255); /* #2D2D30 */
+const ImU32 ImGuiWindow::kColorTabActive = IM_COL32(30, 30, 30, 255); /* #1E1E1E document background */
+const ImU32 ImGuiWindow::kColorTabHovered = IM_COL32(62, 62, 64, 255); /* #3E3E40 */
+const ImU32 ImGuiWindow::kColorResizeGrip = IM_COL32(60, 60, 60, 255); /* #3C3C3C */
+const ImU32 ImGuiWindow::kColorResizeGripHovered = IM_COL32(155, 79, 212, 255); /* #9B4FD4 accent */
+const ImU32 ImGuiWindow::kColorResizeGripActive = IM_COL32(176, 119, 228, 255); /* #B077E4 */
+const ImU32 ImGuiWindow::kColorChildBg = IM_COL32(30, 30, 30, 255); /* #1E1E1E editor background */
+const ImU32 ImGuiWindow::kColorPopupBg = IM_COL32(45, 45, 48, 255); /* #2D2D30 */
+const ImU32 ImGuiWindow::kColorBorder = IM_COL32(63, 63, 70, 255); /* #3F3F46 */
+const ImU32 ImGuiWindow::kColorText = IM_COL32(204, 204, 204, 255); /* #CCCCCC */
+const ImU32 ImGuiWindow::kColorTextDisabled = IM_COL32(113, 113, 113, 255); /* #717171 */
+const ImU32 ImGuiWindow::kColorButton = IM_COL32(60, 60, 60, 255); /* #3C3C3C flat like Visual Studio */
+const ImU32 ImGuiWindow::kColorButtonActive = IM_COL32(58, 34, 99, 255); /* #3A2263 pressed */
+const ImU32 ImGuiWindow::kColorButtonHovered = IM_COL32(78, 78, 78, 255); /* #4E4E4E */
+const ImU32 ImGuiWindow::kColorFrameBg = IM_COL32(60, 60, 60, 255); /* #3C3C3C input field */
+const ImU32 ImGuiWindow::kColorFrameBgActive = IM_COL32(58, 34, 99, 255); /* #3A2263 focused input */
+const ImU32 ImGuiWindow::kColorFrameBgHovered = IM_COL32(78, 78, 78, 255); /* #4E4E4E */
+const ImU32 ImGuiWindow::kColorHeader = IM_COL32(58, 34, 99, 255); /* #3A2263 selection */
+const ImU32 ImGuiWindow::kColorHeaderActive = IM_COL32(124, 63, 184, 255); /* #7C3FB8 */
+const ImU32 ImGuiWindow::kColorHeaderHovered = IM_COL32(74, 46, 126, 255); /* #4A2E7E */
+const ImU32 ImGuiWindow::kColorCheckMark = IM_COL32(155, 79, 212, 255); /* #9B4FD4 accent */
+const ImU32 ImGuiWindow::kColorSliderGrab = IM_COL32(155, 79, 212, 255); /* #9B4FD4 accent */
+const ImU32 ImGuiWindow::kColorSliderGrabActive = IM_COL32(176, 119, 228, 255); /* #B077E4 */
+const ImU32 ImGuiWindow::kColorScrollbarBg = IM_COL32(30, 30, 30, 217); /* #1E1E1E @ 85% */
+const ImU32 ImGuiWindow::kColorScrollbarGrab = IM_COL32(66, 66, 66, 255); /* #424242 */
+const ImU32 ImGuiWindow::kColorScrollbarGrabActive = IM_COL32(106, 106, 106, 255); /* #6A6A6A */
+const ImU32 ImGuiWindow::kColorScrollbarGrabHovered = IM_COL32(90, 90, 90, 255); /* #5A5A5A */
 const ImU32 ImGuiWindow::kColorRhombusSelect = IM_COL32(255, 127, 0, 255);
 const ImU32 ImGuiWindow::kColorRhombusDefault = IM_COL32(175, 175, 175, 255);
 const ImU32 ImGuiWindow::kColorRhombusMoving = IM_COL32(255, 127, 0, 127);
@@ -1102,7 +1291,7 @@ ImGuiWindow::saveDefaultStyle(nanoem_f32_t deviceScaleRatio)
     ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, kColorScrollbarGrab);
     ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, kColorScrollbarGrabActive);
     ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, kColorScrollbarGrabHovered);
-    const nanoem_f32_t rounding = 3 * deviceScaleRatio;
+    const nanoem_f32_t rounding = 2 * deviceScaleRatio;
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, rounding);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, rounding);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, rounding);
@@ -1326,6 +1515,7 @@ ImGuiWindow::initialize(nanoem_f32_t windowDevicePixelRatio, nanoem_f32_t viewpo
     io.DisplayFramebufferScale = ImVec2(windowDevicePixelRatio, windowDevicePixelRatio);
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
     ImGui::StyleColorsDark(&m_style);
+    applyVisualStudioStyle(m_style, m_applicationPtr ? m_applicationPtr->applicationConfiguration() : nullptr);
     m_style.AntiAliasedFill = m_style.AntiAliasedLines = viewportDevicePixelRatio > 1.0f;
     ImGui::GetStyle() = m_style;
     ImGui::GetStyle().ScaleAllSizes(windowDevicePixelRatio);
@@ -1762,7 +1952,7 @@ void
 ImGuiWindow::openPreferenceDialog()
 {
     if (m_dialogWindows.find(PreferenceDialog::kIdentifier) == m_dialogWindows.end()) {
-        INoModalDialogWindow *dialog = nanoem_new(PreferenceDialog(m_applicationPtr, this));
+        INoModalDialogWindow *dialog = nanoem_new(PreferenceDialog(m_applicationPtr));
         m_dialogWindows.insert(tinystl::make_pair(PreferenceDialog::kIdentifier, dialog));
     }
 }
@@ -1852,9 +2042,9 @@ ImGuiWindow::drawAllWindows(Project *project, IState *state, nanoem_u32_t flags)
     sg::PassBlock pb;
     Inline::clearZeroMemory(pa);
     pa.colors[0].action = pa.depth.action = pa.stencil.action = SG_ACTION_CLEAR;
-    pa.colors[0].value.r = 0.0f;
-    pa.colors[0].value.g = 0.5f;
-    pa.colors[0].value.b = 0.7f;
+    pa.colors[0].value.r = 0.118f; /* #1E1E1E: matches the Visual Studio editor background */
+    pa.colors[0].value.g = 0.118f;
+    pa.colors[0].value.b = 0.118f;
     pa.colors[0].value.a = 1.0f;
     if (isVisible()) {
         SG_PUSH_GROUP("ImGuiWindow::drawAllWindows");

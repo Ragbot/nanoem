@@ -27,6 +27,7 @@ public:
 
 protected:
     static Vector3 handleDragAxis(int index);
+    Project *project() const NANOEM_DECL_NOEXCEPT;
     ICamera *activeCamera() NANOEM_DECL_NOEXCEPT;
     Vector3 angle() const NANOEM_DECL_NOEXCEPT;
     Vector3 lookAt() const NANOEM_DECL_NOEXCEPT;

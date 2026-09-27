@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 4.0)
 
 include(ProcessorCount)
 ProcessorCount(numCPUs)
@@ -679,6 +679,34 @@ execute_process(COMMAND ${GIT_EXECUTABLE} checkout -- .
                 RESULT_VARIABLE result)
 execute_process(COMMAND ${GIT_EXECUTABLE} apply --ignore-space-change ${CMAKE_CURRENT_SOURCE_DIR}/cmake/zlib.diff
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/zlib
+                RESULT_VARIABLE result)
+# sokol: fix _sapp_x11_parse_dropped_files_list() dropping the final (unterminated) URI of a
+#        text/uri-list, which made every Linux drag & drop of a single file a silent no-op.
+execute_process(COMMAND ${GIT_EXECUTABLE} checkout -- .
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/sokol
+                RESULT_VARIABLE result)
+execute_process(COMMAND ${GIT_EXECUTABLE} apply --ignore-space-change ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sokol.diff
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/sokol
+                RESULT_VARIABLE result)
+# ImGuiFileDialog: the C wrappers discarded their C++ return values and always answered false,
+#                  so callers could never tell whether a dialog was already open.
+execute_process(COMMAND ${GIT_EXECUTABLE} checkout -- .
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/imguifiledialog
+                RESULT_VARIABLE result)
+execute_process(COMMAND ${GIT_EXECUTABLE} apply --ignore-space-change ${CMAKE_CURRENT_SOURCE_DIR}/cmake/imguifiledialog.diff
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/imguifiledialog
+                RESULT_VARIABLE result)
+# protobuf-c: messages are allocated with the caller supplied allocator (not calloc) and the
+#             generated message_init() initializes them by struct assignment, which per C11
+#             6.5.16.3 leaves padding bytes unspecified and additionally skips the tail bytes
+#             of a oneof union whose initializer only mentions its first member. Those stale
+#             bytes are later read back as a message pointer and passed to
+#             protobuf_c_message_free_unpacked(), which crashed while loading NMD motions.
+execute_process(COMMAND ${GIT_EXECUTABLE} checkout -- .
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/protobuf-c
+                RESULT_VARIABLE result)
+execute_process(COMMAND ${GIT_EXECUTABLE} apply --ignore-space-change ${CMAKE_CURRENT_SOURCE_DIR}/cmake/protobuf-c.diff
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/protobuf-c
                 RESULT_VARIABLE result)
 execute_process(COMMAND ${GIT_EXECUTABLE} checkout -- .
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/glslang)

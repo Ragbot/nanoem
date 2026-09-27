@@ -1,5 +1,5 @@
 # effect
-option(${PROJECT_NAME_PREFIX}_INSTALL_EFFECT_PLUGIN ON)
+option(${PROJECT_NAME_PREFIX}_INSTALL_EFFECT_PLUGIN "Enable installing effect plugin option." OFF)
 file(GLOB EFFECT_PROTO_SOURCES ${PROJECT_SOURCE_DIR}/emapp/src/effect*.pb-c.c)
 if(${PROJECT_NAME_PREFIX}_INSTALL_EFFECT_PLUGIN)
   nanoem_emapp_plugin_set_library_type()

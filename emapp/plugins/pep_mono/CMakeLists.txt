@@ -1,5 +1,5 @@
 # pep_mono
-option(${PROJECT_NAME_PREFIX}_INSTALL_PEP_MONO_PLUGIN OFF)
+option(${PROJECT_NAME_PREFIX}_INSTALL_PEP_MONO_PLUGIN "Enable installing PEP mono plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_PEP_MONO_PLUGIN)
   set(_plugin_name plugin_pep_mono)
   find_path(MONO_INCLUDE_DIR mono/jit/jit.h PATH_SUFFIXES include/mono-2.0

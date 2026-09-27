@@ -69,10 +69,16 @@ public:
     void setSkinDeformAcceleratorEnabled(bool value);
     bool isCrashReportEnabled() const NANOEM_DECL_NOEXCEPT;
     void setCrashReportEnabled(bool value);
+    bool isNaturalScrollingEnabled() const NANOEM_DECL_NOEXCEPT;
+    void setNaturalScrollingEnabled(bool value);
     bool isEffectEnabled() const NANOEM_DECL_NOEXCEPT;
     void setEffectEnabled(bool value);
     bool isEffectCacheEnabled() const NANOEM_DECL_NOEXCEPT;
     void setEffectCacheEnabled(bool value);
+    const char *audioOutputDevice() const NANOEM_DECL_NOEXCEPT;
+    void setAudioOutputDevice(const char *value);
+    StringList allAvailableAudioOutputDevices() const;
+    String audioOutputDeviceDescription(const char *name) const;
 
 private:
     const char *readString(const char *key, const char *defaultValue) const NANOEM_DECL_NOEXCEPT;

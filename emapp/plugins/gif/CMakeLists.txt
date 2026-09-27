@@ -1,5 +1,5 @@
 # gif
-option(${PROJECT_NAME_PREFIX}_INSTALL_GIF_PLUGIN ON)
+option(${PROJECT_NAME_PREFIX}_INSTALL_GIF_PLUGIN "Enable installing GIF plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_GIF_PLUGIN)
   set(_plugin_name plugin_gif)
   add_library(${_plugin_name} SHARED ${CMAKE_CURRENT_SOURCE_DIR}/gif.cc

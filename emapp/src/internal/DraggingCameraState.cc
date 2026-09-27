@@ -43,6 +43,12 @@ DraggingCameraState::commit(const Vector2SI32 & /* logicalCursorPosition */)
     m_lastPressedCursorPosition = Vector2(0);
 }
 
+Project *
+DraggingCameraState::project() const NANOEM_DECL_NOEXCEPT
+{
+    return m_project;
+}
+
 nanoem_f32_t
 DraggingCameraState::scaleFactor() const NANOEM_DECL_NOEXCEPT
 {
@@ -222,7 +228,11 @@ CameraLookAtState::CameraLookAtState(Project *project, ICamera *camera, const Ve
 void
 CameraLookAtState::transform(const Vector2SI32 &logicalCursorPosition)
 {
-    const Vector3 delta(cursorDelta(logicalCursorPosition) * Vector2(1, -1), 0);
+    /* nanoem's default drag makes the scene travel opposite to the pointer. Natural scrolling
+     * negates both axes so the scene follows the pointer instead, the way macOS natural
+     * scrolling behaves for a drag gesture. */
+    const Vector2 direction(Vector2(1, -1) * (project()->isNaturalScrollingEnabled() ? -1.0f : 1.0f));
+    const Vector3 delta(cursorDelta(logicalCursorPosition) * direction, 0);
     Matrix4x4 viewMatrix, projectionMatrix;
     ICamera *camera = activeCamera();
     camera->getViewTransform(viewMatrix, projectionMatrix);

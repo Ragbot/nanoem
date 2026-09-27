@@ -1,0 +1,30 @@
+diff --git a/protobuf-c/protobuf-c.c b/protobuf-c/protobuf-c.c
+index ad1bdb1..09206e5 100644
+--- a/protobuf-c/protobuf-c.c
++++ b/protobuf-c/protobuf-c.c
+@@ -3080,10 +3080,23 @@ protobuf_c_message_unpack(const ProtobufCMessageDescriptor *desc,
+ 	 * provide the function, and (2) descriptors constructed from some other
+ 	 * source (most likely, direct construction from the .proto file).
+ 	 */
+-	if (desc->message_init != NULL)
++	/*
++	 * The generated message_init() functions initialize a message by assigning a constant
++	 * struct. Per C11 6.5.16.3 the padding bytes of a structure assignment take
++	 * unspecified values, and compilers additionally leave the tail bytes of a oneof union
++	 * untouched when the initializer only mentions its first member (e.g. the union of
++	 * {bool, int32, float, message *} where only the 4 byte member is written). Because rv
++	 * comes from the allocator rather than calloc, those bytes hold stale heap data that is
++	 * later read as a message pointer and passed to protobuf_c_message_free_unpacked(),
++	 * which crashes while loading a message. Clear the message before running the
++	 * generated initializer so parsing never depends on unspecified bytes.
++	 */
++	if (desc->message_init != NULL) {
++		memset(rv, 0, desc->sizeof_message);
+ 		protobuf_c_message_init(desc, rv);
+-	else
++	} else {
+ 		message_init_generic(desc, rv);
++	}
+ 
+ 	while (rem > 0) {
+ 		uint32_t tag;

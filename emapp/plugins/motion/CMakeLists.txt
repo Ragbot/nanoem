@@ -1,5 +1,5 @@
 # motion
-option(${PROJECT_NAME_PREFIX}_INSTALL_MOTION_PLUGIN ON)
+option(${PROJECT_NAME_PREFIX}_INSTALL_MOTION_PLUGIN "Enable installing motion plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_MOTION_PLUGIN)
   set(_plugin_name plugin_motion)
   add_library(${_plugin_name} SHARED ${CMAKE_CURRENT_SOURCE_DIR}/motion.cc

@@ -15,30 +15,10 @@
 
 #include <sstream>
 
-#if !defined(NANOEM_ENABLE_ICU) && !defined(NANOEM_ENABLE_MBWC) && !defined(NANOEM_ENABLE_CFSTRING) && !defined(NANOEM_ENABLE_QT)
-nanoem_unicode_string_factory_t * APIENTRY
-nanoemUnicodeStringFactoryCreateEXT(nanoem_status_t *status)
-{
-    return nanoemUnicodeStringFactoryCreate(status);
-}
-void APIENTRY
-nanoemUnicodeStringFactoryDestroyEXT(nanoem_unicode_string_factory_t *factory)
-{
-    nanoemUnicodeStringFactoryDestroy(factory);
-}
-void APIENTRY
-nanoemUnicodeStringFactoryToUtf8OnStackEXT(nanoem_unicode_string_factory_t *factory, const nanoem_unicode_string_t *string, nanoem_rsize_t *length, nanoem_u8_t *buffer, nanoem_rsize_t capacity, nanoem_status_t *status)
-{
-    char *s = reinterpret_cast<char *>(nanoemUnicodeStringFactoryGetByteArray(factory, string, length, status));
-    strncpy(reinterpret_cast<char *>(buffer), s, capacity);
-    nanoemUnicodeStringFactoryDestroyByteArray(factory, reinterpret_cast<nanoem_u8_t *>(s));
-}
-nanoem_rsize_t APIENTRY
-nanoemUnicodeStringGetLength(const nanoem_unicode_string_t *string)
-{
-    return string ? strlen(reinterpret_cast<const char *>(string)) : 0;
-}
-#endif
+/* The nanoemUnicodeStringFactory*EXT/nanoemUnicodeStringGetLength definitions
+ * formerly duplicated here are provided by emapp/src/CommonInclude.cc
+ * (linked via libemapp) with the same preprocessor guard; defining them in
+ * both places causes duplicate symbol errors at link time. */
 
 namespace {
 

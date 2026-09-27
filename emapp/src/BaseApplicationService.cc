@@ -87,49 +87,6 @@ namespace nanoem {
 
 extern bx::AllocatorI *g_sokol_allocator;
 
-struct sentry_options_t;
-struct sentry_transport_t;
-
-typedef sentry_transport_t *(APIENTRY *PFN_sentry_transport_new)(void (*)(sentry_envelope_t *, void *));
-typedef void(APIENTRY *PFN_sentry_transport_set_state)(sentry_transport_t *, void *);
-typedef void(APIENTRY *PFN_sentry_transport_set_free_func)(sentry_transport_t *, void (*)(void *));
-typedef void(APIENTRY *PFN_sentry_transport_set_startup_func)(
-    sentry_transport_t *, int (*)(const sentry_options_t *, void *));
-typedef void(APIENTRY *PFN_sentry_transport_set_shutdown_func)(sentry_transport_t *, int (*)(uint64_t, void *));
-typedef void(APIENTRY *PFN_sentry_transport_free)(sentry_transport_t *);
-
-static PFN_sentry_transport_new sentry_transport_new;
-static PFN_sentry_transport_set_state sentry_transport_set_state;
-static PFN_sentry_transport_set_free_func sentry_transport_set_free_func;
-static PFN_sentry_transport_set_startup_func sentry_transport_set_startup_func;
-static PFN_sentry_transport_set_shutdown_func sentry_transport_set_shutdown_func;
-static PFN_sentry_transport_free sentry_transport_free;
-
-typedef sentry_options_t *(APIENTRY *PFN_sentry_options_new)();
-typedef void(APIENTRY *PFN_sentry_init)(sentry_options_t *);
-typedef void(APIENTRY *PFN_sentry_options_set_debug)(sentry_options_t *, int);
-typedef void(APIENTRY *PFN_sentry_options_set_dsn)(sentry_options_t *, const char *);
-typedef void(APIENTRY *PFN_sentry_options_set_release)(sentry_options_t *, const char *);
-typedef void(APIENTRY *PFN_sentry_options_set_handler_path)(sentry_options_t *, const char *);
-typedef void(APIENTRY *PFN_sentry_options_set_database_path)(sentry_options_t *, const char *);
-typedef void(APIENTRY *PFN_sentry_options_set_transport)(sentry_options_t *, sentry_transport_t *);
-typedef void(APIENTRY *PFN_sentry_set_user)(sentry_value_t);
-typedef void(APIENTRY *PFN_sentry_shutdown)();
-typedef const char *(APIENTRY *PFN_sentry_value_as_string)(sentry_value_t);
-typedef void(APIENTRY *PFN_sentry_value_decref)(sentry_value_t);
-
-static PFN_sentry_init sentry_init = nullptr;
-static PFN_sentry_options_new sentry_options_new = nullptr;
-static PFN_sentry_options_set_debug sentry_options_set_debug = nullptr;
-static PFN_sentry_options_set_dsn sentry_options_set_dsn = nullptr;
-static PFN_sentry_options_set_release sentry_options_set_release = nullptr;
-static PFN_sentry_options_set_handler_path sentry_options_set_handler_path = nullptr;
-static PFN_sentry_options_set_database_path sentry_options_set_database_path = nullptr;
-static PFN_sentry_options_set_transport sentry_options_set_transport = nullptr;
-static PFN_sentry_set_user sentry_set_user = nullptr;
-static PFN_sentry_shutdown sentry_shutdown = nullptr;
-static PFN_sentry_value_as_string sentry_value_as_string = nullptr;
-static PFN_sentry_value_decref sentry_value_decref = nullptr;
 
 PFN_sentry_value_new_breadcrumb sentry_value_new_breadcrumb = nullptr;
 PFN_sentry_value_new_int32 sentry_value_new_int32 = nullptr;
@@ -147,16 +104,7 @@ PFN_sentry_free sentry_free = nullptr;
 
 namespace {
 
-static sentry_value_t
-defaultMaskStringFunc(const char *value)
-{
-    return sentry_value_new_string(value);
-}
-
 static bool g_initialized = false;
-static bool g_sentryAvailable = false;
-static BaseApplicationService::SentryDescription::PFN_mask_string_function g_sentryMaskStringProc =
-    defaultMaskStringFunc;
 
 struct TimeBasedAudioPlayer : BaseAudioPlayer {
     static const nanoem_u32_t kSmoothnessScaleFactor = 16;
@@ -393,11 +341,6 @@ BaseApplicationService::EventPublisher::publishUndoEvent(bool canUndo, bool canR
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_UNDO;
     event.undo = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("undo.undo"));
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -411,11 +354,6 @@ BaseApplicationService::EventPublisher::publishRedoEvent(bool canRedo, bool canU
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_REDO;
     event.redo = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("undo.redo"));
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -427,12 +365,6 @@ BaseApplicationService::EventPublisher::publishPushUndoCommandEvent(const undo_c
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_UNDO_CHANGE;
     event.undo_change = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("undo.push"));
-        sentry_value_set_by_key(breadcrumb, "name", sentry_value_new_string(undoCommandGetName(commandPtr)));
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -453,15 +385,6 @@ BaseApplicationService::EventPublisher::publishAddModelEvent(const Model *model)
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_ADD_MODEL;
     event.add_model = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "handle", sentry_value_new_int32(base.model_handle));
-        sentry_value_set_by_key(data, "name", sentry_value_new_string(base.name));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("model.add"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -482,14 +405,6 @@ BaseApplicationService::EventPublisher::publishSetActiveModelEvent(const Model *
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_SET_ACTIVE_MODEL;
     event.set_active_model = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "handle", sentry_value_new_int32(base.model_handle));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("model.active"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -558,14 +473,6 @@ BaseApplicationService::EventPublisher::publishRemoveModelEvent(const Model *mod
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_REMOVE_MODEL;
     event.remove_model = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "handle", sentry_value_new_int32(base.model_handle));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("model.remove"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -586,15 +493,6 @@ BaseApplicationService::EventPublisher::publishAddAccessoryEvent(const Accessory
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_ADD_ACCESSORY;
     event.add_accessory = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "handle", sentry_value_new_int32(base.accessory_handle));
-        sentry_value_set_by_key(data, "name", sentry_value_new_string(base.name));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("accessory.add"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -615,14 +513,6 @@ BaseApplicationService::EventPublisher::publishSetActiveAccessoryEvent(const Acc
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_SET_ACTIVE_ACCESSORY;
     event.set_active_accessory = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "handle", sentry_value_new_int32(base.accessory_handle));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("accessory.active"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -643,14 +533,6 @@ BaseApplicationService::EventPublisher::publishRemoveAccessoryEvent(const Access
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_REMOVE_ACCESSORY;
     event.remove_accessory = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "handle", sentry_value_new_int32(base.accessory_handle));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("accessory.remove"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -663,14 +545,6 @@ BaseApplicationService::EventPublisher::publishAddMotionEvent(const Motion *moti
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_ADD_MOTION;
     event.add_motion = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "handle", sentry_value_new_int32(base.motion_handle));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("motion.add"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -683,14 +557,6 @@ BaseApplicationService::EventPublisher::publishRemoveMotionEvent(const Motion *m
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_REMOVE_MOTION;
     event.remove_motion = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "handle", sentry_value_new_int32(base.motion_handle));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("motion.remove"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -705,15 +571,6 @@ BaseApplicationService::EventPublisher::publishPlayEvent(
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_PLAY;
     event.play = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "duration", sentry_value_new_int32(duration));
-        sentry_value_set_by_key(data, "index", sentry_value_new_int32(localFrameIndex));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("play"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -728,15 +585,6 @@ BaseApplicationService::EventPublisher::publishPauseEvent(
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_PAUSE;
     event.pause = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "duration", sentry_value_new_int32(duration));
-        sentry_value_set_by_key(data, "index", sentry_value_new_int32(localFrameIndex));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("pause"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -751,15 +599,6 @@ BaseApplicationService::EventPublisher::publishResumeEvent(
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_RESUME;
     event.resume = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "duration", sentry_value_new_int32(duration));
-        sentry_value_set_by_key(data, "index", sentry_value_new_int32(localFrameIndex));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("resume"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -774,15 +613,6 @@ BaseApplicationService::EventPublisher::publishStopEvent(
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_STOP;
     event.stop = &base;
     sendEventMessage(event);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "duration", sentry_value_new_int32(duration));
-        sentry_value_set_by_key(data, "index", sentry_value_new_int32(localFrameIndex));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("stop"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void
@@ -1495,15 +1325,6 @@ BaseApplicationService::EventPublisher::publishErrorEvent(const Error &error)
         event.type_case = NANOEM__APPLICATION__EVENT__TYPE_ERROR;
         event.error = &base;
         sendEventMessage(event);
-        if (g_sentryAvailable) {
-            sentry_value_t reason = g_sentryMaskStringProc(error.reasonConstString()),
-                           breadcrumb = sentry_value_new_breadcrumb(nullptr, sentry_value_as_string(reason));
-            sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("error"));
-            sentry_value_set_by_key(
-                breadcrumb, "domain", sentry_value_new_string(Error::convertDomainToString(error.domain())));
-            sentry_add_breadcrumb(breadcrumb);
-            sentry_value_decref(reason);
-        }
     }
 }
 
@@ -1529,96 +1350,19 @@ BaseApplicationService::setup() NANOEM_DECL_NOEXCEPT
 }
 
 void *
-BaseApplicationService::openSentryDll(const SentryDescription &desc)
+BaseApplicationService::openSentryDll(const SentryDescription & /* desc */)
 {
-    void *handle = bx::dlopen(desc.m_dllFilePath);
-    if (handle) {
-        bool valid = true;
-        Inline::resolveSymbol(handle, "sentry_options_new", sentry_options_new, valid);
-        Inline::resolveSymbol(handle, "sentry_options_set_debug", sentry_options_set_debug, valid);
-        Inline::resolveSymbol(handle, "sentry_options_set_dsn", sentry_options_set_dsn, valid);
-        Inline::resolveSymbol(handle, "sentry_options_set_release", sentry_options_set_release, valid);
-        Inline::resolveSymbol(handle, "sentry_options_set_handler_path", sentry_options_set_handler_path, valid);
-        Inline::resolveSymbol(handle, "sentry_options_set_database_path", sentry_options_set_database_path, valid);
-        Inline::resolveSymbol(handle, "sentry_options_set_transport", sentry_options_set_transport, valid);
-        Inline::resolveSymbol(handle, "sentry_init", sentry_init, valid);
-        Inline::resolveSymbol(handle, "sentry_value_new_breadcrumb", sentry_value_new_breadcrumb, valid);
-        Inline::resolveSymbol(handle, "sentry_value_new_int32", sentry_value_new_int32, valid);
-        Inline::resolveSymbol(handle, "sentry_value_new_double", sentry_value_new_double, valid);
-        Inline::resolveSymbol(handle, "sentry_value_new_string", sentry_value_new_string, valid);
-        Inline::resolveSymbol(handle, "sentry_value_new_object", sentry_value_new_object, valid);
-        Inline::resolveSymbol(handle, "sentry_value_set_by_key", sentry_value_set_by_key, valid);
-        Inline::resolveSymbol(handle, "sentry_value_as_string", sentry_value_as_string, valid);
-        Inline::resolveSymbol(handle, "sentry_value_decref", sentry_value_decref, valid);
-        Inline::resolveSymbol(handle, "sentry_add_breadcrumb", sentry_add_breadcrumb, valid);
-        Inline::resolveSymbol(handle, "sentry_set_extra", sentry_set_extra, valid);
-        Inline::resolveSymbol(handle, "sentry_set_tag", sentry_set_tag, valid);
-        Inline::resolveSymbol(handle, "sentry_set_user", sentry_set_user, valid);
-        Inline::resolveSymbol(handle, "sentry_envelope_free", sentry_envelope_free, valid);
-        Inline::resolveSymbol(handle, "sentry_envelope_serialize", sentry_envelope_serialize, valid);
-        Inline::resolveSymbol(handle, "sentry_free", sentry_free, valid);
-        Inline::resolveSymbol(handle, "sentry_transport_new", sentry_transport_new, valid);
-        Inline::resolveSymbol(handle, "sentry_transport_set_state", sentry_transport_set_state, valid);
-        Inline::resolveSymbol(handle, "sentry_transport_set_free_func", sentry_transport_set_free_func, valid);
-        Inline::resolveSymbol(handle, "sentry_transport_set_startup_func", sentry_transport_set_startup_func, valid);
-        Inline::resolveSymbol(handle, "sentry_transport_set_shutdown_func", sentry_transport_set_shutdown_func, valid);
-        Inline::resolveSymbol(handle, "sentry_transport_free", sentry_transport_free, valid);
-        Inline::resolveSymbol(handle, "sentry_shutdown", sentry_shutdown, valid);
-        if (valid) {
-            sentry_options_t *options = sentry_options_new();
-            sentry_options_set_release(options, nanoemGetVersionString());
-            sentry_options_set_handler_path(options, desc.m_handlerFilePath);
-            sentry_options_set_database_path(options, desc.m_databaseDirectoryPath);
-            if (SentryDescription::PFN_transport_send_envelope sendEnvelope = desc.m_transportSendEnvelope) {
-                sentry_transport_t *transport = sentry_transport_new(sendEnvelope);
-                sentry_transport_set_state(transport, desc.m_transportUserData);
-                sentry_options_set_transport(options, transport);
-            }
-#if !defined(NDEBUG)
-            sentry_options_set_debug(options, 1);
-#endif
-            if (const char *dsn = desc.m_dsn) {
-                sentry_options_set_dsn(options, dsn);
-            }
-            sentry_init(options);
-            if (const char *deviceModel = desc.m_deviceModelName) {
-                sentry_set_tag("device.model", deviceModel);
-            }
-            if (const char *localeName = desc.m_localeName) {
-                sentry_set_tag("nanoem.locale", localeName);
-            }
-            if (const char *rendererName = desc.m_rendererName) {
-                sentry_set_tag("nanoem.renderer", rendererName);
-            }
-            if (const char *clientUUID = desc.m_clientUUID) {
-                sentry_value_t user = sentry_value_new_object();
-                sentry_value_set_by_key(user, "id", sentry_value_new_string(clientUUID));
-                sentry_set_user(user);
-            }
-            sentry_set_tag("nanoem.model.editable", desc.m_isModelEditingEnabled ? "true" : "false");
-            sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-            sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("init"));
-            sentry_add_breadcrumb(breadcrumb);
-            g_sentryAvailable = true;
-            g_sentryMaskStringProc = desc.m_maskString ? desc.m_maskString : defaultMaskStringFunc;
-        }
-        else {
-            bx::dlclose(handle);
-            handle = nullptr;
-        }
-    }
-    return handle;
+    /*
+     * Telemetry (Sentry crash reporting) has been removed: the crash reporter is never loaded, so
+     * no breadcrumb, tag, client UUID, locale, project path or crash report can leave this machine.
+     * The function is kept as a stub because the platform front-ends still call it.
+     */
+    return nullptr;
 }
 
 void
-BaseApplicationService::closeSentryDll(void *handle)
+BaseApplicationService::closeSentryDll(void * /* handle */)
 {
-    if (handle) {
-        sentry_shutdown();
-        g_sentryAvailable = false;
-        g_sentryMaskStringProc = nullptr;
-        bx::dlclose(handle);
-    }
 }
 
 BaseApplicationService::BaseApplicationService(const JSON_Value *root)
@@ -1648,6 +1392,7 @@ BaseApplicationService::BaseApplicationService(const JSON_Value *root)
 
 BaseApplicationService::~BaseApplicationService() NANOEM_DECL_NOEXCEPT
 {
+    saveApplicationConfiguration();
     json_value_free(m_applicationPendingChangeConfiguration);
     m_applicationPendingChangeConfiguration = nullptr;
     nanoem_delete_safe(m_defaultFileManager);
@@ -1712,17 +1457,9 @@ BaseApplicationService::createProject(const Vector2UI16 &logicalPixelWindowSize,
     }
     project->setEffectPluginEnabled(preference.isEffectEnabled());
     project->setCompiledEffectCacheEnabled(preference.isEffectCacheEnabled());
+    project->setNaturalScrollingEnabled(preference.isNaturalScrollingEnabled());
     const Vector2UI16 devicePixelWindowSize(Vector2(logicalPixelWindowSize) * project->windowDevicePixelRatio());
     m_window->resizeDevicePixelWindowSize(devicePixelWindowSize);
-    if (g_sentryAvailable) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "width", sentry_value_new_int32(devicePixelWindowSize.x));
-        sentry_value_set_by_key(data, "height", sentry_value_new_int32(devicePixelWindowSize.y));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("new"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
     EMLOG_INFO("Created a project: ptr={} width={} height={}", static_cast<const void *>(project),
         devicePixelWindowSize.x, devicePixelWindowSize.y);
     return project;
@@ -1760,12 +1497,7 @@ BaseApplicationService::draw(Project *project)
         project->flushAllCommandBuffers();
         if (stopped) {
             stopCapture(project);
-            if (g_sentryAvailable) {
-                sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("capture.stop"));
-                sentry_add_breadcrumb(breadcrumb);
-            }
-            else if (error.hasReason()) {
+            if (error.hasReason()) {
                 error.addModalDialog(this);
             }
         }
@@ -2701,6 +2433,62 @@ BaseApplicationService::applicationPendingChangeConfiguration() NANOEM_DECL_NOEX
     return m_applicationPendingChangeConfiguration;
 }
 
+static void
+mergeConfigurationObject(JSON_Object *dst, const JSON_Object *src)
+{
+    const size_t count = json_object_get_count(src);
+    for (size_t i = 0; i < count; i++) {
+        const char *name = json_object_get_name(src, i);
+        const JSON_Value *value = name ? json_object_get_value(src, name) : nullptr;
+        if (!name || !value) {
+            continue;
+        }
+        if (json_value_get_type(value) == JSONObject) {
+            if (JSON_Object *child = json_object_get_object(dst, name)) {
+                mergeConfigurationObject(child, json_value_get_object(value));
+                continue;
+            }
+        }
+        if (JSON_Value *cloned = json_value_deep_copy(value)) {
+            json_object_set_value(dst, name, cloned);
+        }
+    }
+}
+
+bool
+BaseApplicationService::saveApplicationConfiguration(const char *filePath)
+{
+    bool succeeded = false;
+    if (m_applicationConfiguration) {
+        JSON_Object *config = json_object(m_applicationConfiguration);
+        if (config && m_applicationPendingChangeConfiguration) {
+            if (JSON_Object *pending = json_object(m_applicationPendingChangeConfiguration)) {
+                mergeConfigurationObject(config, pending);
+            }
+        }
+        String path;
+        if (filePath && filePath[0] != '\0') {
+            path = String(filePath);
+        }
+        else if (const char *value = json_object_dotget_string(config, "sapp.config.path")) {
+            path = String(value);
+        }
+        if (!path.empty()) {
+            const char *pathValue = path.c_str();
+            const nanoem_rsize_t size = static_cast<nanoem_rsize_t>(path.size());
+            for (nanoem_rsize_t i = size; i > 0; i--) {
+                const char c = pathValue[i - 1];
+                if (c == '/' || c == '\\') {
+                    FileUtils::createDirectories(String(pathValue, i - 1));
+                    break;
+                }
+            }
+            succeeded = json_serialize_to_file_pretty(m_applicationConfiguration, pathValue) == JSONSuccess;
+        }
+    }
+    return succeeded;
+}
+
 nanoem_u32_t
 BaseApplicationService::defaultAuxFlags() const NANOEM_DECL_NOEXCEPT
 {
@@ -2929,15 +2717,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
             resizeDefaultRenderTarget(devicePixelWindowSize, project);
             project->resizeWindowSize(logicalPixelWindowSize);
             m_window->resizeDevicePixelWindowSize(devicePixelWindowSize);
-            if (g_sentryAvailable) {
-                sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                sentry_value_t data = sentry_value_new_object();
-                sentry_value_set_by_key(data, "width", sentry_value_new_int32(logicalPixelWindowSize.x));
-                sentry_value_set_by_key(data, "height", sentry_value_new_int32(logicalPixelWindowSize.y));
-                sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("resized"));
-                sentry_value_set_by_key(breadcrumb, "data", data);
-                sentry_add_breadcrumb(breadcrumb);
-            }
         }
         break;
     }
@@ -2949,14 +2728,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
         bool hasTicks = false;
         if (!fileURI.isEmpty() && !hasModalDialog()) {
             const IFileManager::DialogType type = static_cast<IFileManager::DialogType>(commandPtr->type);
-            if (g_sentryAvailable) {
-                sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                sentry_value_t data = sentry_value_new_object();
-                sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(fileURI.absolutePathConstString()));
-                sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("loading"));
-                sentry_value_set_by_key(breadcrumb, "data", data);
-                sentry_add_breadcrumb(breadcrumb);
-            }
             if (IDebugCapture *debugCapture = m_sharedDebugCaptureRepository.debugCapture()) {
                 debugCapture->start(nullptr);
             }
@@ -2968,26 +2739,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
             endDrawContext();
             if (IDebugCapture *debugCapture = m_sharedDebugCaptureRepository.debugCapture()) {
                 debugCapture->stop();
-            }
-            if (g_sentryAvailable) {
-                if (succeeded) {
-                    sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                    sentry_value_t data = sentry_value_new_object();
-                    sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(fileURI.absolutePathConstString()));
-                    sentry_value_set_by_key(data, "seconds", sentry_value_new_double(stm_sec(interval)));
-                    sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("loaded"));
-                    sentry_value_set_by_key(breadcrumb, "data", data);
-                    sentry_add_breadcrumb(breadcrumb);
-                }
-                else if (error.isCancelled()) {
-                    sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                    sentry_value_t data = sentry_value_new_object();
-                    sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(fileURI.absolutePathConstString()));
-                    sentry_value_set_by_key(data, "seconds", sentry_value_new_double(stm_sec(interval)));
-                    sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("cancelled"));
-                    sentry_value_set_by_key(breadcrumb, "data", data);
-                    sentry_add_breadcrumb(breadcrumb);
-                }
             }
         }
         Nanoem__Application__CompleteLoadingFileEvent base = NANOEM__APPLICATION__COMPLETE_LOADING_FILE_EVENT__INIT;
@@ -3009,14 +2760,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
         const URI fileURI(URI::createFromFilePath(uri->absolute_path, uri->fragment));
         if (!hasModalDialog()) {
             const IFileManager::DialogType type = static_cast<IFileManager::DialogType>(commandPtr->type);
-            if (g_sentryAvailable) {
-                sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                sentry_value_t data = sentry_value_new_object();
-                sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(fileURI.absolutePathConstString()));
-                sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("saving"));
-                sentry_value_set_by_key(breadcrumb, "data", data);
-                sentry_add_breadcrumb(breadcrumb);
-            }
             const nanoem_u64_t startedAt = stm_now();
             succeeded = saveAsFile(fileURI, project, type, error);
             const nanoem_u64_t interval = stm_since(startedAt);
@@ -3316,15 +3059,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
         const URI fileURI(URI::createFromFilePath(uri->absolute_path, uri->fragment));
         Project *project = m_stateController->currentProject();
         startCapture(project, fileURI, error);
-        if (g_sentryAvailable && !fileURI.isEmpty() && !error.hasReason()) {
-            sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-            sentry_value_t data = sentry_value_new_object();
-            sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(uri->absolute_path));
-            sentry_value_set_by_key(data, "type", sentry_value_new_string("image"));
-            sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("capture.start"));
-            sentry_value_set_by_key(breadcrumb, "data", data);
-            sentry_add_breadcrumb(breadcrumb);
-        }
         break;
     }
     case NANOEM__APPLICATION__COMMAND__TYPE_EXECUTE_EXPORTING_VIDEO: {
@@ -3333,15 +3067,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
         const URI fileURI(URI::createFromFilePath(uri->absolute_path, uri->fragment));
         Project *project = m_stateController->currentProject();
         startCapture(project, fileURI, error);
-        if (g_sentryAvailable && !fileURI.isEmpty() && !error.hasReason()) {
-            sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-            sentry_value_t data = sentry_value_new_object();
-            sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(uri->absolute_path));
-            sentry_value_set_by_key(data, "type", sentry_value_new_string("video"));
-            sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("capture.start"));
-            sentry_value_set_by_key(breadcrumb, "data", data);
-            sentry_add_breadcrumb(breadcrumb);
-        }
         break;
     }
     case NANOEM__APPLICATION__COMMAND__TYPE_START_DEBUG_CAPTURE: {
@@ -4263,14 +3988,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
             if (Accessory *accessory = project->findAccessoryByHandle(commandPtr->accessory_handle)) {
                 Progress progress(project, 0);
                 succeeded = project->reloadDrawableEffect(accessory, progress, error);
-                if (g_sentryAvailable) {
-                    sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                    sentry_value_t data = sentry_value_new_object();
-                    sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("effect.reload.accessory"));
-                    sentry_value_set_by_key(data, "handle", sentry_value_new_int32(commandPtr->accessory_handle));
-                    sentry_value_set_by_key(breadcrumb, "data", data);
-                    sentry_add_breadcrumb(breadcrumb);
-                }
             }
         }
         break;
@@ -4281,14 +3998,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
             if (Model *model = project->findModelByHandle(commandPtr->model_handle)) {
                 Progress progress(project, 0);
                 succeeded = project->reloadDrawableEffect(model, progress, error);
-                if (g_sentryAvailable) {
-                    sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                    sentry_value_t data = sentry_value_new_object();
-                    sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("effect.reload.model"));
-                    sentry_value_set_by_key(data, "handle", sentry_value_new_int32(commandPtr->model_handle));
-                    sentry_value_set_by_key(breadcrumb, "data", data);
-                    sentry_add_breadcrumb(breadcrumb);
-                }
             }
         }
         break;
@@ -4898,17 +4607,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
                         else {
                             proxy.execute(functionIndex, input, activeModel, project, error);
                         }
-                        if (g_sentryAvailable) {
-                            sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                            sentry_value_t data = sentry_value_new_object();
-                            sentry_value_set_by_key(data, "name", sentry_value_new_string(proxy.name().c_str()));
-                            sentry_value_set_by_key(data, "version", sentry_value_new_string(proxy.version().c_str()));
-                            sentry_value_set_by_key(data, "function", sentry_value_new_int32(functionIndex));
-                            sentry_value_set_by_key(
-                                breadcrumb, "category", sentry_value_new_string("plugin.model.execute"));
-                            sentry_value_set_by_key(breadcrumb, "data", data);
-                            sentry_add_breadcrumb(breadcrumb);
-                        }
                     }
                     succeeded = !error.hasReason();
                 }
@@ -4961,17 +4659,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
                         }
                         else {
                             proxy.execute(functionIndex, input, project, error);
-                        }
-                        if (g_sentryAvailable) {
-                            sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                            sentry_value_t data = sentry_value_new_object();
-                            sentry_value_set_by_key(data, "name", sentry_value_new_string(proxy.name().c_str()));
-                            sentry_value_set_by_key(data, "version", sentry_value_new_string(proxy.version().c_str()));
-                            sentry_value_set_by_key(data, "function", sentry_value_new_int32(functionIndex));
-                            sentry_value_set_by_key(
-                                breadcrumb, "category", sentry_value_new_string("plugin.motion.execute"));
-                            sentry_value_set_by_key(breadcrumb, "data", data);
-                            sentry_add_breadcrumb(breadcrumb);
                         }
                     }
                     succeeded = succeeded && !error.hasReason();
@@ -5041,14 +4728,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
         const Nanoem__Application__DropFileCommand *commandPtr = command->drop_file;
         const Nanoem__Application__URI *uri = commandPtr->file_uri;
         const URI &fileURI = URI::createFromFilePath(uri->absolute_path, uri->fragment);
-        if (g_sentryAvailable) {
-            sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-            sentry_value_t data = sentry_value_new_object();
-            sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(fileURI.absolutePathConstString()));
-            sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("dropping"));
-            sentry_value_set_by_key(breadcrumb, "data", data);
-            sentry_add_breadcrumb(breadcrumb);
-        }
         const nanoem_u64_t startedAt = stm_now();
         if (Project::isLoadableExtension(fileURI)) {
             succeeded = loadFromFile(fileURI, project, IFileManager::kDialogTypeOpenProject, error);
@@ -5069,26 +4748,6 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
             succeeded = loadFromFile(fileURI, project, IFileManager::kDialogTypeOpenAudioFile, error);
         }
         const nanoem_u64_t interval = stm_since(startedAt);
-        if (g_sentryAvailable) {
-            if (succeeded) {
-                sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                sentry_value_t data = sentry_value_new_object();
-                sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(fileURI.absolutePathConstString()));
-                sentry_value_set_by_key(data, "seconds", sentry_value_new_double(stm_sec(interval)));
-                sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("dropped"));
-                sentry_value_set_by_key(breadcrumb, "data", data);
-                sentry_add_breadcrumb(breadcrumb);
-            }
-            else if (error.isCancelled()) {
-                sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-                sentry_value_t data = sentry_value_new_object();
-                sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(fileURI.absolutePathConstString()));
-                sentry_value_set_by_key(data, "seconds", sentry_value_new_double(stm_sec(interval)));
-                sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("cancelled"));
-                sentry_value_set_by_key(breadcrumb, "data", data);
-                sentry_add_breadcrumb(breadcrumb);
-            }
-        }
         break;
     }
     case NANOEM__APPLICATION__COMMAND__TYPE_GET_HANDLE_FILE_URI: {
@@ -5671,11 +5330,6 @@ BaseApplicationService::handleSGXMessage(const char * /* tag */, uint32_t /* log
     uint32_t key = bx::hash<bx::HashMurmur2A>(message_or_null);
     HandledSGXMessageSet::const_iterator it = self->m_handledSGXMessages.find(key);
     if (it == self->m_handledSGXMessages.end()) {
-        if (g_sentryAvailable) {
-            sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, message_or_null);
-            sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("error"));
-            sentry_add_breadcrumb(breadcrumb);
-        }
         if (message_or_null) {
             EMLOG_DEBUG("Captured SGX error: message=\"{}\"", message_or_null);
         }
@@ -5737,15 +5391,6 @@ BaseApplicationService::sendSaveFileMessage(const URI &fileURI, uint32_t type, u
     event.type_case = NANOEM__APPLICATION__EVENT__TYPE_COMPLETE_SAVING_FILE;
     event.complete_saving_file = &base;
     sendEventMessage(&event);
-    if (g_sentryAvailable && succeeded) {
-        sentry_value_t breadcrumb = sentry_value_new_breadcrumb(nullptr, nullptr);
-        sentry_value_t data = sentry_value_new_object();
-        sentry_value_set_by_key(data, "path", g_sentryMaskStringProc(fileURI.absolutePathConstString()));
-        sentry_value_set_by_key(data, "seconds", sentry_value_new_double(stm_sec(interval)));
-        sentry_value_set_by_key(breadcrumb, "category", sentry_value_new_string("saved"));
-        sentry_value_set_by_key(breadcrumb, "data", data);
-        sentry_add_breadcrumb(breadcrumb);
-    }
 }
 
 void

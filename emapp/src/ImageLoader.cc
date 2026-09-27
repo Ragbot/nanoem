@@ -1595,9 +1595,14 @@ ImageLoader::load(const URI &fileURI, IDrawable *drawable, sg_wrap wrap, nanoem_
     const String filename(
         FileUtils::relativePath(fileURI.absolutePath(), drawable->fileURI().absolutePathByDeletingLastPathComponent()));
     const char lastChr = filename.empty() ? 0 : *(filename.c_str() + filename.size() - 1);
-    if (lastChr != '/' && FileUtils::exists(fileURI)) {
+    if (lastChr != '/') {
+        URI openURI(fileURI);
+        /* models are authored on case-insensitive filesystems: retry with the on-disk casing */
+        if (!FileUtils::exists(openURI) && !FileUtils::findExistingFileCaseInsensitive(fileURI, openURI)) {
+            return imageView;
+        }
         FileReaderScope scope(nullptr);
-        if (scope.open(fileURI, error)) {
+        if (scope.open(openURI, error)) {
             ByteArray bytes;
             FileUtils::read(scope, bytes, error);
             if (!error.hasReason()) {

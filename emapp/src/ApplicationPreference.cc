@@ -22,6 +22,7 @@ static const char kModelEditingEnabled[] = "editing.model.enabled";
 static const char kAnalyticsEnabled[] = "analytics.enabled";
 static const char kResettingAnalyticsUUIDRequired[] = "analytics.reset";
 static const char kPreferredEditingFPS[] = "editing.motion.fps";
+static const char kNaturalScrollingEnabled[] = "mouse.natural-scroll";
 static const char kSkinDeformAcceleratorEnabled[] = "renderer.sda.enabled";
 static const char kCrashReporterEnabled[] = "crashReporter.enabled";
 static const char kUndoSoftLimit[] = "undo.limit";
@@ -34,9 +35,23 @@ static const char kGFXShaderPoolSize[] = "gfx.pool.shader";
 static const char kGFXPassPoolSize[] = "gfx.pool.pass";
 static const char kGFXPipelinePoolSize[] = "gfx.pool.pipeline";
 static const char kGFXUniformBufferSize[] = "gfx.buffer.uniform";
+static const char kAudioOutputDevice[] = "application.preference.audio.output-device";
+static const char kAudioOutputDevices[] = "audio.output-devices";
+static const char kDefaultAudioOutputDevice[] = "default";
 static const int kBufferSize = 128;
 
 } /* namespace anonymous */
+
+static bool
+containsAudioOutputDevice(const StringList &values, const char *value)
+{
+    for (StringList::const_iterator it = values.begin(), end = values.end(); it != end; ++it) {
+        if (StringUtils::equals(it->c_str(), value)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 const int ApplicationPreference::kUndoSoftLimitDefaultValue = 64;
 const int ApplicationPreference::kGFXBufferPoolSizeDefaultValue = 0x2000;
@@ -67,6 +82,80 @@ ApplicationPreference::allAvailableRenderers() const
         }
     }
     return values;
+}
+
+static const JSON_Array *
+findAudioOutputDevices(const JSON_Value *pending, const JSON_Value *config)
+{
+    const JSON_Object *pendingObject = pending ? json_object(pending) : nullptr;
+    const JSON_Object *configObject = config ? json_object(config) : nullptr;
+    const JSON_Array *devices = pendingObject ? json_object_dotget_array(pendingObject, kAudioOutputDevices) : nullptr;
+    if (!devices && configObject) {
+        devices = json_object_dotget_array(configObject, kAudioOutputDevices);
+    }
+    return devices;
+}
+
+StringList
+ApplicationPreference::allAvailableAudioOutputDevices() const
+{
+    StringList values;
+    if (const JSON_Array *devices =
+            findAudioOutputDevices(m_application->applicationPendingChangeConfiguration(),
+                m_application->applicationConfiguration())) {
+        const size_t count = json_array_get_count(devices);
+        for (size_t i = 0; i < count; i++) {
+            /* an entry is either a bare name or a { name, description } object */
+            const JSON_Object *item = json_array_get_object(devices, i);
+            const char *name = item ? json_object_get_string(item, "name") : json_array_get_string(devices, i);
+            if (name && name[0] != '\0' && !containsAudioOutputDevice(values, name)) {
+                values.push_back(name);
+            }
+        }
+    }
+    if (values.empty()) {
+        values.push_back(kDefaultAudioOutputDevice);
+    }
+    const char *current = audioOutputDevice();
+    if (!containsAudioOutputDevice(values, current)) {
+        values.push_back(current);
+    }
+    return values;
+}
+
+String
+ApplicationPreference::audioOutputDeviceDescription(const char *name) const
+{
+    if (name && name[0] != '\0') {
+        if (const JSON_Array *devices =
+                findAudioOutputDevices(m_application->applicationPendingChangeConfiguration(),
+                    m_application->applicationConfiguration())) {
+            const size_t count = json_array_get_count(devices);
+            for (size_t i = 0; i < count; i++) {
+                const JSON_Object *item = json_array_get_object(devices, i);
+                const char *itemName =
+                    item ? json_object_get_string(item, "name") : json_array_get_string(devices, i);
+                if (itemName && StringUtils::equals(itemName, name)) {
+                    const char *description = item ? json_object_get_string(item, "description") : nullptr;
+                    return String(description && description[0] != '\0' ? description : name);
+                }
+            }
+        }
+        return String(name);
+    }
+    return String(kDefaultAudioOutputDevice);
+}
+
+const char *
+ApplicationPreference::audioOutputDevice() const NANOEM_DECL_NOEXCEPT
+{
+    return readString(kAudioOutputDevice, kDefaultAudioOutputDevice);
+}
+
+void
+ApplicationPreference::setAudioOutputDevice(const char *value)
+{
+    writeString(kAudioOutputDevice, value && value[0] != '\0' ? value : kDefaultAudioOutputDevice);
 }
 
 const char *
@@ -253,7 +342,8 @@ ApplicationPreference::setModelEditingEnabled(bool value)
 bool
 ApplicationPreference::isAnalyticsEnabled() const NANOEM_DECL_NOEXCEPT
 {
-    return readBool(kAnalyticsEnabled, true);
+    /* analytics has been removed: nothing is ever collected nor sent */
+    return false;
 }
 
 void
@@ -289,7 +379,20 @@ ApplicationPreference::setSkinDeformAcceleratorEnabled(bool value)
 bool
 ApplicationPreference::isCrashReportEnabled() const NANOEM_DECL_NOEXCEPT
 {
-    return readBool(kCrashReporterEnabled, true);
+    /* crash reporting has been removed: the Sentry SDK is never initialized */
+    return false;
+}
+
+bool
+ApplicationPreference::isNaturalScrollingEnabled() const NANOEM_DECL_NOEXCEPT
+{
+    return readBool(kNaturalScrollingEnabled, false);
+}
+
+void
+ApplicationPreference::setNaturalScrollingEnabled(bool value)
+{
+    writeBool(kNaturalScrollingEnabled, value);
 }
 
 void

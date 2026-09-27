@@ -1,5 +1,5 @@
 # zip
-option(${PROJECT_NAME_PREFIX}_INSTALL_ZIP_PLUGIN ON)
+option(${PROJECT_NAME_PREFIX}_INSTALL_ZIP_PLUGIN "Enable installing zip plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_ZIP_PLUGIN)
   set(MINIZIP_SUBMODULE_PATH "${PROJECT_SOURCE_DIR}/dependencies/minizip")
   set(_plugin_name plugin_zip)

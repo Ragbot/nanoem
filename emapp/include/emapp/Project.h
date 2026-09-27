@@ -701,6 +701,8 @@ public:
     void setEffectPluginEnabled(bool value);
     bool isCompiledEffectCacheEnabled() const NANOEM_DECL_NOEXCEPT;
     void setCompiledEffectCacheEnabled(bool value);
+    bool isNaturalScrollingEnabled() const NANOEM_DECL_NOEXCEPT;
+    void setNaturalScrollingEnabled(bool value);
     bool isViewportCaptured() const NANOEM_DECL_NOEXCEPT;
     void setViewportCaptured(bool value);
     bool isViewportHovered() const NANOEM_DECL_NOEXCEPT;

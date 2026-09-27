@@ -281,6 +281,14 @@ public:
     void setFileManager(IFileManager *value);
     const JSON_Value *applicationConfiguration() const NANOEM_DECL_NOEXCEPT;
     JSON_Value *applicationPendingChangeConfiguration() NANOEM_DECL_NOEXCEPT;
+    /**
+     * @brief Merges the pending preferences into the application configuration and writes it to disk.
+     *
+     * @param filePath explicit destination; when nullptr the "sapp.config.path" entry of the
+     *                 application configuration is used and nothing is written if it is absent.
+     * @return true when the configuration file has been (re)written.
+     */
+    bool saveApplicationConfiguration(const char *filePath = nullptr);
     nanoem_u32_t defaultAuxFlags() const NANOEM_DECL_NOEXCEPT;
     void setDefaultAuxFlags(nanoem_u32_t value);
     bool isUIVisible() const NANOEM_DECL_NOEXCEPT;

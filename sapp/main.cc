@@ -70,7 +70,19 @@ ApplicationState::initialize()
     String effectPluginPath(pluginDirPath);
     effectPluginPath.append("/plugin_effect." BX_DL_EXT);
     bx::FilePath tempPath(bx::Dir::Temp);
+    const String configurationPath = FileUtils::userConfigurationFilePath();
+    if (FileUtils::exists(configurationPath.c_str())) {
+        JSON_Value *loaded = json_parse_file(configurationPath.c_str());
+        if (loaded && json_value_get_type(loaded) == JSONObject) {
+            json_value_free(m_config);
+            m_config = loaded;
+        }
+        else if (loaded) {
+            json_value_free(loaded);
+        }
+    }
     JSON_Object *root = json_value_get_object(m_config);
+    json_object_dotset_string(root, "sapp.config.path", configurationPath.c_str());
     json_object_dotset_string(root, "sapp.executable.path", executablePathBuffer);
     json_object_dotset_string(root, "sapp.plugin.path", pluginDirPath.c_str());
     json_object_dotset_string(root, "plugin.effect.path", effectPluginPath.c_str());
@@ -172,7 +184,11 @@ sokol_main(int argc, char *argv[])
         }
         case SAPP_EVENTTYPE_FILES_DROPPED: {
             const char *path = sapp_get_dropped_file_path(0);
-            window->handleFileDrop(path);
+            /* an X11 drop may yield no usable entry (malformed URI list, dropped directory, ...)
+             * and sokol then reports an empty path; ignore it instead of loading an empty URI */
+            if (path && path[0] != '\0') {
+                window->handleFileDrop(path);
+            }
             break;
         }
         case SAPP_EVENTTYPE_QUIT_REQUESTED: {

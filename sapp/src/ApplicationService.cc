@@ -20,6 +20,11 @@
 #include "sokol/sokol_audio.h"
 #include <atomic>
 
+#if defined(__linux__)
+#include <alsa/asoundlib.h>
+#include <stdlib.h>
+#endif /* __linux__ */
+
 namespace nanoem {
 namespace sapp {
 namespace {
@@ -29,8 +34,9 @@ static const uint64_t kClockLatencyThresholdFPSCount = 10;
 struct AudioPlayer : BaseAudioPlayer {
     static const uint32_t kSmoothnessScaleFactor = 16;
 
-    AudioPlayer()
+    AudioPlayer(BaseApplicationService *application)
         : BaseAudioPlayer()
+        , m_application(application)
         , m_offset(0)
         , m_volumeGain(1.0f)
     {
@@ -184,14 +190,151 @@ struct AudioPlayer : BaseAudioPlayer {
             desc.user_data = this;
             desc.num_channels = format.m_numChannels;
             desc.sample_rate = format.m_sampleRate;
+            m_deviceName = resolveAudioOutputDevice();
+            desc.device_name = m_deviceName.c_str();
             saudio_setup(&desc);
         }
     }
 
+    String
+    resolveAudioOutputDevice() const
+    {
+        static const char kAudioOutputDeviceKey[] = "application.preference.audio.output-device";
+        if (const JSON_Object *pending = json_object(m_application->applicationPendingChangeConfiguration())) {
+            if (const char *value = json_object_dotget_string(pending, kAudioOutputDeviceKey)) {
+                if (value[0] != '\0') {
+                    return String(value);
+                }
+            }
+        }
+        if (const JSON_Object *config = json_object(m_application->applicationConfiguration())) {
+            if (const char *value = json_object_dotget_string(config, kAudioOutputDeviceKey)) {
+                if (value[0] != '\0') {
+                    return String(value);
+                }
+            }
+        }
+        return String("default");
+    }
+
+    BaseApplicationService *m_application;
+    String m_deviceName;
     Clock m_clock;
     std::atomic<uint64_t> m_offset;
     std::atomic<nanoem_f32_t> m_volumeGain;
 };
+
+#if defined(__linux__)
+static const char kAudioOutputDevicesKey[] = "audio.output-devices";
+
+static bool
+containsAudioOutputDevice(const JSON_Array *devices, const char *value)
+{
+    const size_t count = json_array_get_count(devices);
+    for (size_t i = 0; i < count; i++) {
+        const JSON_Object *item = json_array_get_object(devices, i);
+        const char *name = item ? json_object_get_string(item, "name") : json_array_get_string(devices, i);
+        if (name && StringUtils::equals(name, value)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+isAudioOutputDeviceAvailable(const char *name)
+{
+    snd_pcm_t *pcm = nullptr;
+    const int result = snd_pcm_open(&pcm, name, SND_PCM_STREAM_PLAYBACK, 0);
+    if (result >= 0) {
+        snd_pcm_close(pcm);
+    }
+    return result >= 0;
+}
+
+static void
+appendAudioOutputDevice(JSON_Array *devices, const char *name, const char *description)
+{
+    if (name && name[0] != '\0' && !containsAudioOutputDevice(devices, name) && isAudioOutputDeviceAvailable(name)) {
+        if (JSON_Value *value = json_value_init_object()) {
+            JSON_Object *object = json_value_get_object(value);
+            json_object_set_string(object, "name", name);
+            json_object_set_string(object, "description", description && description[0] != '\0' ? description : name);
+            json_array_append_value(devices, value);
+        }
+    }
+}
+
+/*
+ * Enumerates the ALSA playback devices and exposes them as a JSON array of { name, description }
+ * objects in the pending application configuration so that the preference dialog is able to offer
+ * them for selection.
+ *
+ * snd_device_name_hint() reports the PCM plugins too (lavrate, samplerate, oss, upmix, ...), which
+ * are converters instead of selectable output devices, so the list is built from the control
+ * interface instead: every playback capable PCM device of every installed card, probed before it
+ * is published so that the menu only contains devices that can actually be opened.
+ *
+ * The list is refreshed on every startup to keep it in sync with the devices attached to the
+ * system.
+ */
+static void
+enumerateAudioOutputDevices(JSON_Object *pending)
+{
+    if (!pending) {
+        return;
+    }
+    JSON_Value *value = json_value_init_array();
+    JSON_Array *devices = json_value_get_array(value);
+    appendAudioOutputDevice(devices, "default", "System default output device");
+    int card = -1;
+    snd_card_next(&card);
+    while (card >= 0) {
+        char controlName[32];
+        StringUtils::format(controlName, sizeof(controlName), "hw:%d", card);
+        snd_ctl_t *control = nullptr;
+        if (snd_ctl_open(&control, controlName, 0) >= 0) {
+            snd_ctl_card_info_t *info = nullptr;
+            snd_ctl_card_info_alloca(&info);
+            if (snd_ctl_card_info(control, info) >= 0) {
+                const char *cardId = snd_ctl_card_info_get_id(info), *cardName = snd_ctl_card_info_get_name(info);
+                int device = -1;
+                snd_ctl_pcm_next_device(control, &device);
+                while (device >= 0) {
+                    snd_pcm_info_t *pcmInfo = nullptr;
+                    snd_pcm_info_alloca(&pcmInfo);
+                    snd_pcm_info_set_device(pcmInfo, device);
+                    snd_pcm_info_set_subdevice(pcmInfo, 0);
+                    snd_pcm_info_set_stream(pcmInfo, SND_PCM_STREAM_PLAYBACK);
+                    if (snd_ctl_pcm_info(control, pcmInfo) >= 0) {
+                        const char *label = snd_pcm_info_get_name(pcmInfo);
+                        if (!label || label[0] == '\0') {
+                            label = snd_pcm_info_get_id(pcmInfo);
+                        }
+                        char name[128], description[256];
+                        StringUtils::format(name, sizeof(name), "plughw:CARD=%s,DEV=%d", cardId, device);
+                        StringUtils::format(description, sizeof(description), "%s: %s",
+                            cardName && cardName[0] != '\0' ? cardName : cardId, label ? label : name);
+                        appendAudioOutputDevice(devices, name, description);
+                    }
+                    snd_ctl_pcm_next_device(control, &device);
+                }
+            }
+            snd_ctl_close(control);
+        }
+        snd_card_next(&card);
+    }
+    if (json_array_get_count(devices) > 0) {
+        if (json_object_dotset_value(pending, kAudioOutputDevicesKey, value) != JSONSuccess) {
+            /* parson does not take the ownership when the value cannot be stored */
+            json_value_free(value);
+        }
+    }
+    else {
+        json_value_free(value);
+    }
+}
+#endif /* __linux__ */
 
 } /* namespace anonymous */
 
@@ -200,6 +343,9 @@ ApplicationService::ApplicationService(const JSON_Value *config, ApplicationClie
     , m_menubarApplciationClient(bridge)
     , m_bridge(bridge)
 {
+#if defined(__linux__)
+    enumerateAudioOutputDevices(json_object(applicationPendingChangeConfiguration()));
+#endif /* __linux__ */
 }
 
 ApplicationService::~ApplicationService() noexcept
@@ -267,10 +413,16 @@ ApplicationService::consumeDispatchAllCommandMessages()
 {
     Project *project = projectHolder()->currentProject();
     ByteArrayList &commands = m_bridge->m_commands;
-    for (ByteArrayList::const_iterator it = commands.begin(), end = commands.end(); it != end; ++it) {
+    ByteArrayList pending;
+    /* Dispatching a command may enqueue further commands: resolving the save file dialog of an
+     * export pushes the execute exporting video command while the save file command is still
+     * being handled. Moving the queue aside before dispatching keeps such commands pending for
+     * the next frame. Clearing the queue afterwards used to drop them without dispatching them,
+     * which made File > Export > Video silently do nothing after the confirmation screen. */
+    pending.swap(commands);
+    for (ByteArrayList::const_iterator it = pending.begin(), end = pending.end(); it != end; ++it) {
         dispatchCommandMessage(it->data(), it->size(), project, false);
     }
-    commands.clear();
 }
 
 void
@@ -282,7 +434,7 @@ ApplicationService::dispatchAllEventMessages()
 IAudioPlayer *
 ApplicationService::createAudioPlayer()
 {
-    return nanoem_new(AudioPlayer);
+    return nanoem_new(AudioPlayer(this));
 }
 
 bool

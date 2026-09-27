@@ -13,10 +13,14 @@
 #include "emapp/private/CommonInclude.h"
 
 #include <stdio.h>
-#if !BX_PLATFORM_WINDOWS
+#if BX_PLATFORM_WINDOWS
+#include <direct.h>
+#else
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
@@ -835,6 +839,168 @@ bool
 FileUtils::exists(const URI &fileURI) NANOEM_DECL_NOEXCEPT
 {
     return fileURI.isEmpty() ? false : exists(fileURI.absolutePathConstString());
+}
+
+String
+FileUtils::userConfigurationFilePath()
+{
+    char buffer[1024] = { 0 };
+    uint32_t size = static_cast<uint32_t>(sizeof(buffer) - 1);
+    String directory;
+#if BX_PLATFORM_WINDOWS
+    if (bx::getEnv(buffer, &size, "APPDATA") && buffer[0] != '\0') {
+        directory = String(buffer);
+    }
+#elif BX_PLATFORM_OSX
+    if (bx::getEnv(buffer, &size, "HOME") && buffer[0] != '\0') {
+        directory = String(buffer);
+        directory.append("/Library/Application Support");
+    }
+#else
+    if (bx::getEnv(buffer, &size, "XDG_CONFIG_HOME") && buffer[0] != '\0') {
+        directory = String(buffer);
+    }
+    else {
+        size = static_cast<uint32_t>(sizeof(buffer) - 1);
+        if (bx::getEnv(buffer, &size, "HOME") && buffer[0] != '\0') {
+            directory = String(buffer);
+            directory.append("/.config");
+        }
+    }
+#endif
+    if (directory.empty()) {
+        const bx::FilePath home(bx::Dir::Home);
+        directory = String(home.getCPtr());
+    }
+    directory.append("/nanoem/config.json");
+    return directory;
+}
+
+bool
+FileUtils::createDirectories(const String &path)
+{
+    const char *value = path.c_str();
+    const nanoem_rsize_t size = static_cast<nanoem_rsize_t>(path.size());
+    if (size > 0) {
+        MutableString buffer(value, value + size);
+        for (nanoem_rsize_t i = 1; i < size; i++) {
+            if (value[i] == '/' || value[i] == '\\') {
+                const char separator = buffer[i];
+                buffer[i] = 0;
+#if BX_PLATFORM_WINDOWS
+                ::_mkdir(buffer.data());
+#else
+                ::mkdir(buffer.data(), 0755);
+#endif
+                buffer[i] = separator;
+            }
+        }
+#if BX_PLATFORM_WINDOWS
+        ::_mkdir(value);
+#else
+        ::mkdir(value, 0755);
+#endif
+    }
+    return size > 0 && exists(value);
+}
+
+#if !BX_PLATFORM_WINDOWS
+static void
+joinPath(char *dst, nanoem_rsize_t dstSize, const char *base, const char *name)
+{
+    const nanoem_rsize_t baseLen = (nanoem_rsize_t) ::strlen(base);
+    if (baseLen > 0 && base[baseLen - 1] != '/') {
+        ::snprintf(dst, dstSize, "%s/%s", base, name);
+    }
+    else {
+        ::snprintf(dst, dstSize, "%s%s", base, name);
+    }
+}
+
+static bool
+findDirectoryEntryIgnoreCase(const char *directory, const char *name, char *output, nanoem_rsize_t outputSize)
+{
+    bool found = false;
+    DIR *dir = ::opendir(directory);
+    if (dir) {
+        while (const struct dirent *entry = ::readdir(dir)) {
+            if (::strcasecmp(entry->d_name, name) == 0) {
+                const nanoem_rsize_t len = (nanoem_rsize_t) ::strlen(entry->d_name);
+                if (len < outputSize) {
+                    ::memcpy(output, entry->d_name, len + 1);
+                    found = true;
+                }
+                break;
+            }
+        }
+        ::closedir(dir);
+    }
+    return found;
+}
+#endif
+
+bool
+FileUtils::findExistingFileCaseInsensitive(const URI &fileURI, URI &resolved) NANOEM_DECL_NOEXCEPT
+{
+#if !BX_PLATFORM_WINDOWS
+    if (fileURI.isEmpty()) {
+        return false;
+    }
+    const char *path = fileURI.absolutePathConstString();
+    const nanoem_rsize_t len = path ? (nanoem_rsize_t) ::strlen(path) : 0;
+    char current[PATH_MAX];
+    nanoem_rsize_t offset = 0;
+    bool changed = false;
+    if (len == 0 || len >= PATH_MAX) {
+        return false;
+    }
+    if (path[0] == '/') {
+        current[0] = '/';
+        current[1] = '\0';
+        offset = 1;
+    }
+    else {
+        current[0] = '\0';
+    }
+    while (offset < len) {
+        const nanoem_rsize_t begin = offset;
+        while (offset < len && path[offset] != '/') {
+            offset++;
+        }
+        const nanoem_rsize_t componentLen = offset - begin;
+        if (componentLen > 0 && componentLen < PATH_MAX) {
+            char component[PATH_MAX];
+            char entry[PATH_MAX];
+            char candidate[PATH_MAX];
+            ::memcpy(component, path + begin, componentLen);
+            component[componentLen] = '\0';
+            joinPath(candidate, (nanoem_rsize_t) sizeof(candidate), current, component);
+            if (::access(candidate, F_OK) == 0) {
+                ::snprintf(current, (size_t) sizeof(current), "%s", candidate);
+            }
+            else {
+                if (!findDirectoryEntryIgnoreCase(current[0] ? current : ".", component, entry,
+                        (nanoem_rsize_t) sizeof(entry))) {
+                    return false;
+                }
+                joinPath(candidate, (nanoem_rsize_t) sizeof(candidate), current, entry);
+                ::snprintf(current, (size_t) sizeof(current), "%s", candidate);
+                changed = true;
+            }
+        }
+        if (offset < len && path[offset] == '/') {
+            offset++;
+        }
+    }
+    if (!changed || ::access(current, F_OK) != 0) {
+        return false;
+    }
+    resolved = URI::createFromFilePath(String(current), fileURI.fragment());
+    return true;
+#else
+    BX_UNUSED_2(fileURI, resolved);
+    return false;
+#endif
 }
 
 bool

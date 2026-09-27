@@ -1,5 +1,5 @@
 # lsmash
-option(${PROJECT_NAME_PREFIX}_INSTALL_LSMASH_PLUGIN ON)
+option(${PROJECT_NAME_PREFIX}_INSTALL_LSMASH_PLUGIN "Enable installing LSMASH plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_LSMASH_PLUGIN)
   nanoem_emapp_plugin_set_library_type()
   set(LSMASH_BASE_PATH ${PROJECT_SOURCE_DIR}/dependencies/l-smash)

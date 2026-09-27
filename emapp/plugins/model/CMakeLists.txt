@@ -1,5 +1,5 @@
 # model
-option(${PROJECT_NAME_PREFIX}_INSTALL_MODEL_PLUGIN ON)
+option(${PROJECT_NAME_PREFIX}_INSTALL_MODEL_PLUGIN "Enable installing model plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_MODEL_PLUGIN)
   set(_plugin_name plugin_model)
   add_library(${_plugin_name} SHARED ${CMAKE_CURRENT_SOURCE_DIR}/model.cc

@@ -1,0 +1,20 @@
+diff --git a/sokol_app.h b/sokol_app.h
+index 602df0d..6063d63 100644
+--- a/sokol_app.h
++++ b/sokol_app.h
+@@ -10394,7 +10394,14 @@ _SOKOL_PRIVATE bool _sapp_x11_parse_dropped_files_list(const char* src) {
+         return false;
+     }
+     else {
+-        return true;
++        /* the last entry of a text/uri-list is not required to be terminated with a CRLF,
++           so count whatever is left over once the list ran out. src_count is reset to 0 by
++           every line terminator, so anything greater than the 7 byte 'file://' prefix means
++           an unterminated path is sitting in the buffer. */
++        if ((src_count > 7) && (_sapp.drop.num_files < _sapp.drop.max_files)) {
++            _sapp.drop.num_files++;
++        }
++        return _sapp.drop.num_files > 0;
+     }
+ }
+ 

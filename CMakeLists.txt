@@ -1,5 +1,5 @@
 project(nanoem)
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 4.0)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_C_STANDARD 99)
@@ -20,7 +20,16 @@ option(NANOEM_ENABLE_DEBUG_ALLOCATOR "Enable building debug memory allocator" OF
 option(NANOEM_ENABLE_DEBUG_LABEL "Enable building nanoem with debug labels." OFF)
 option(NANOEM_ENABLE_GLFW "Enable GLFW based application option." OFF)
 option(NANOEM_ENABLE_IMGUI_INDEX32 "Enable building ImGui with 32bit indices support" ON)
-option(NANOEM_ENABLE_IMGUI_FILE_DIALOG "Enable building ImGuiFileDialog (https://github.com/aiekick/ImGuiFileDialog) option" OFF)
+# macOS and Win32 provide their own menu builders backed by NSOpenPanel/IFileDialog, but any other
+# platform (Linux/X11, Wayland, GLFW, ...) relies on ImGuiFileDialog for every open/save dialog.
+# Leaving it disabled there makes File > Open a silent no-op, so default it to ON instead.
+if(APPLE OR WIN32)
+  set(_nanoem_enable_imgui_file_dialog_default OFF)
+else()
+  set(_nanoem_enable_imgui_file_dialog_default ON)
+endif()
+option(NANOEM_ENABLE_IMGUI_FILE_DIALOG "Enable building ImGuiFileDialog (https://github.com/aiekick/ImGuiFileDialog) option" ${_nanoem_enable_imgui_file_dialog_default})
+unset(_nanoem_enable_imgui_file_dialog_default)
 option(NANOEM_ENABLE_LOGGING "Enable logging with spdlog." OFF)
 option(NANOEM_ENABLE_LTO "Enable Link Time Optimization when clang is used." OFF)
 option(NANOEM_ENABLE_MIMALLOC "Enable mimalloc as allocator" OFF)

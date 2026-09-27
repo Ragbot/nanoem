@@ -8,6 +8,7 @@
 
 #include "emapp/Error.h"
 #include "emapp/Grid.h"
+#include "emapp/StringUtils.h"
 #include "emapp/private/CommonInclude.h"
 
 #include "undo/undo.h"
@@ -18,9 +19,8 @@ namespace imgui {
 
 const char *const PreferenceDialog::kIdentifier = "dialog.preference";
 
-PreferenceDialog::PreferenceDialog(BaseApplicationService *applicationPtr, ImGuiWindow *parent)
+PreferenceDialog::PreferenceDialog(BaseApplicationService *applicationPtr)
     : BaseNonModalDialogWindow(applicationPtr)
-    , m_parent(parent)
 {
 }
 
@@ -29,7 +29,7 @@ PreferenceDialog::draw(Project *project)
 {
     bool visible = true;
     if (open(
-            tr("nanoem.gui.window.preference.title"), kIdentifier, &visible, ImGui::GetFrameHeightWithSpacing() * 21)) {
+            tr("nanoem.gui.window.preference.title"), kIdentifier, &visible, ImGui::GetFrameHeightWithSpacing() * 24)) {
         ImGui::BeginTabBar("tabbar");
         if (ImGui::BeginTabItem(tr("nanoem.gui.window.preference.tab.global"))) {
             ImGui::PushItemWidth(-1);
@@ -93,17 +93,35 @@ PreferenceDialog::draw(Project *project)
             if (ImGui::Checkbox(tr("nanoem.gui.window.preference.global.sda.enable"), &enableSkinDeformerAccelerator)) {
                 preference.setSkinDeformAcceleratorEnabled(enableSkinDeformerAccelerator);
             }
-            addSeparator();
-            bool enableCrashReport = preference.isCrashReportEnabled();
-            if (ImGui::Checkbox(tr("nanoem.gui.window.preference.global.crash-report.enable"), &enableCrashReport)) {
-                preference.setCrashReportEnabled(enableCrashReport);
+            {
+                bool naturalScrolling = preference.isNaturalScrollingEnabled();
+                if (ImGui::Checkbox("Natural scrolling (mouse drag)", &naturalScrolling)) {
+                    preference.setNaturalScrollingEnabled(naturalScrolling);
+                    project->setNaturalScrollingEnabled(naturalScrolling);
+                }
             }
-            bool enableTracking = preference.isAnalyticsEnabled();
-            if (ImGui::Checkbox(tr("nanoem.gui.window.preference.global.analytics.enable"), &enableTracking)) {
-                preference.setAnalyticsEnabled(enableTracking);
-            }
-            if (m_parent->handleTranslatedButton("nanoem.gui.window.preference.global.analytics.reset")) {
-                preference.setResettingAnalyticsUUIDRequired(true);
+            ImGui::TextUnformatted("Audio output device");
+            {
+                /* copy the current value: writing the preference replaces the string parson owns */
+                const String currentAudioOutputDevice(preference.audioOutputDevice());
+                const String currentAudioOutputDeviceLabel(
+                    preference.audioOutputDeviceDescription(currentAudioOutputDevice.c_str()));
+                const StringList audioOutputDevices(preference.allAvailableAudioOutputDevices());
+                if (ImGui::BeginCombo("##audio-output-device", currentAudioOutputDeviceLabel.c_str())) {
+                    for (StringList::const_iterator it = audioOutputDevices.begin(), end = audioOutputDevices.end();
+                         it != end; ++it) {
+                        const char *name = it->c_str();
+                        const String label(preference.audioOutputDeviceDescription(name));
+                        String id(label);
+                        id.append("##");
+                        id.append(name);
+                        if (ImGui::Selectable(id.c_str(), StringUtils::equals(name, currentAudioOutputDevice.c_str()))) {
+                            preference.setAudioOutputDevice(name);
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::TextDisabled("Takes effect on the next playback");
             }
             ImGui::PopItemWidth();
             addSeparator();
@@ -290,6 +308,10 @@ PreferenceDialog::draw(Project *project)
         ImGui::EndTabBar();
     }
     close();
+    if (!visible) {
+        /* preferences are applied live; persist them as soon as the dialog is dismissed */
+        application()->saveApplicationConfiguration();
+    }
     return visible;
 }
 

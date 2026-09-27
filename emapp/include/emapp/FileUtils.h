@@ -136,11 +136,35 @@ public:
     static nanoem_u64_t timestamp(const URI &fileURI) NANOEM_DECL_NOEXCEPT;
     static bool exists(const char *filePath) NANOEM_DECL_NOEXCEPT;
     static bool exists(const URI &fileURI) NANOEM_DECL_NOEXCEPT;
+    /**
+     * @brief Resolve fileURI by looking up each path component case-insensitively.
+     *
+     * Models are authored on case-insensitive filesystems (Windows), so their texture/effect paths
+     * often refer to files whose on-disk name differs in case only (e.g. "EyeHi.png" vs "eyehi.png").
+     * Without this, such files silently fail to open on Linux.
+     *
+     * @return true when the file exists with a different case, and `resolved` is assigned the
+     *         corrected URI; false when nothing had to be corrected or the file does not exist.
+     */
+    static bool findExistingFileCaseInsensitive(const URI &fileURI, URI &resolved) NANOEM_DECL_NOEXCEPT;
     static bool deleteFile(const char *filePath);
     static bool deleteFile(const URI &fileURI);
 
     static bool createTransientFile(const String &source, TransientPath &dest);
     static bool deleteTransientFile(TransientPath &path);
+    /**
+     * @brief Returns the path of the persisted application configuration file.
+     *
+     * Linux/macOS follow the XDG/Application Support conventions, Windows uses %APPDATA%.
+     * The returned path may not exist yet; it is created on the first save.
+     */
+    static String userConfigurationFilePath();
+    /**
+     * @brief Creates the directory and all of its missing parents (mkdir -p).
+     *
+     * @return true when the directory exists after the call.
+     */
+    static bool createDirectories(const String &path);
     static bool isLoadableExtension(const String &value, const StringSet &supported) NANOEM_DECL_NOEXCEPT;
     static void canonicalizePathSeparator(MutableString &output);
     static void canonicalizePathSeparator(const String &path, String &output);

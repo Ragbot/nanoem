@@ -7009,7 +7009,8 @@ nanoemMotionFindSelfShadowKeyframeObject(const nanoem_motion_t *motion, nanoem_f
 void APIENTRY
 nanoemMotionSearchClosestAccessoryKeyframes(const nanoem_motion_t *motion, nanoem_frame_index_t base_index, nanoem_motion_accessory_keyframe_t **prev_keyframe, nanoem_motion_accessory_keyframe_t **next_keyframe)
 {
-    nanoem_motion_accessory_keyframe_t *current_keyframe, *last_keyframe = NULL;
+    nanoem_motion_accessory_keyframe_t *current_keyframe;
+    nanoem_motion_keyframe_object_t *last_keyframe = NULL;
     nanoem_frame_index_t prev_nearest = NANOEM_FRAME_INDEX_MAX_SIZE, next_nearest = NANOEM_FRAME_INDEX_MAX_SIZE;
     nanoem_motion_accessory_keyframe_t *const *accessory_keyframes;
     nanoem_rsize_t num_accessory_keyframes, i;
@@ -7030,10 +7031,10 @@ nanoemMotionSearchClosestAccessoryKeyframes(const nanoem_motion_t *motion, nanoe
                 &next_nearest,
                 (nanoem_motion_keyframe_object_t **) prev_keyframe,
                 (nanoem_motion_keyframe_object_t **) next_keyframe,
-                (nanoem_motion_keyframe_object_t **) &last_keyframe);
+                &last_keyframe);
         }
         if (nanoem_is_not_null(next_keyframe) && !*next_keyframe) {
-            *next_keyframe = last_keyframe;
+            *next_keyframe = (nanoem_motion_accessory_keyframe_t *) last_keyframe;
         }
     }
 }
@@ -7041,7 +7042,8 @@ nanoemMotionSearchClosestAccessoryKeyframes(const nanoem_motion_t *motion, nanoe
 void APIENTRY
 nanoemMotionSearchClosestBoneKeyframes(const nanoem_motion_t *motion, const nanoem_unicode_string_t *name, nanoem_frame_index_t base_index, nanoem_motion_bone_keyframe_t **prev_keyframe, nanoem_motion_bone_keyframe_t **next_keyframe)
 {
-    nanoem_motion_bone_keyframe_t *current_keyframe, *last_keyframe = NULL;
+    nanoem_motion_bone_keyframe_t *current_keyframe;
+    nanoem_motion_keyframe_object_t *last_keyframe = NULL;
     nanoem_frame_index_t prev_nearest = NANOEM_FRAME_INDEX_MAX_SIZE, next_nearest = NANOEM_FRAME_INDEX_MAX_SIZE;
     kh_keyframe_map_t *keyframes_map;
     khiter_t it, end;
@@ -7063,11 +7065,11 @@ nanoemMotionSearchClosestBoneKeyframes(const nanoem_motion_t *motion, const nano
                         &next_nearest,
                         (nanoem_motion_keyframe_object_t **) prev_keyframe,
                         (nanoem_motion_keyframe_object_t **) next_keyframe,
-                        (nanoem_motion_keyframe_object_t **) &last_keyframe);
+                        &last_keyframe);
                 }
             }
             if (nanoem_is_not_null(next_keyframe) && !*next_keyframe) {
-                *next_keyframe = last_keyframe;
+                *next_keyframe = (nanoem_motion_bone_keyframe_t *) last_keyframe;
             }
         }
     }
@@ -7076,7 +7078,8 @@ nanoemMotionSearchClosestBoneKeyframes(const nanoem_motion_t *motion, const nano
 void APIENTRY
 nanoemMotionSearchClosestCameraKeyframes(const nanoem_motion_t *motion, nanoem_frame_index_t base_index, nanoem_motion_camera_keyframe_t **prev_keyframe, nanoem_motion_camera_keyframe_t **next_keyframe)
 {
-    nanoem_motion_camera_keyframe_t *current_keyframe, *last_keyframe = NULL;
+    nanoem_motion_camera_keyframe_t *current_keyframe;
+    nanoem_motion_keyframe_object_t *last_keyframe = NULL;
     nanoem_frame_index_t prev_nearest = NANOEM_FRAME_INDEX_MAX_SIZE, next_nearest = NANOEM_FRAME_INDEX_MAX_SIZE;
     nanoem_motion_camera_keyframe_t *const *camera_keyframes;
     nanoem_rsize_t num_camera_keyframes, i;
@@ -7097,10 +7100,10 @@ nanoemMotionSearchClosestCameraKeyframes(const nanoem_motion_t *motion, nanoem_f
                 &next_nearest,
                 (nanoem_motion_keyframe_object_t **) prev_keyframe,
                 (nanoem_motion_keyframe_object_t **) next_keyframe,
-                (nanoem_motion_keyframe_object_t **) &last_keyframe);
+                &last_keyframe);
         }
         if (nanoem_is_not_null(next_keyframe) && !*next_keyframe) {
-            *next_keyframe = last_keyframe;
+            *next_keyframe = (nanoem_motion_camera_keyframe_t *) last_keyframe;
         }
     }
 }
@@ -7108,7 +7111,8 @@ nanoemMotionSearchClosestCameraKeyframes(const nanoem_motion_t *motion, nanoem_f
 void APIENTRY
 nanoemMotionSearchClosestLightKeyframes(const nanoem_motion_t *motion, nanoem_frame_index_t base_index, nanoem_motion_light_keyframe_t **prev_keyframe, nanoem_motion_light_keyframe_t **next_keyframe)
 {
-    nanoem_motion_light_keyframe_t *current_keyframe, *last_keyframe = NULL;
+    nanoem_motion_light_keyframe_t *current_keyframe;
+    nanoem_motion_keyframe_object_t *last_keyframe = NULL;
     nanoem_frame_index_t prev_nearest = NANOEM_FRAME_INDEX_MAX_SIZE, next_nearest = NANOEM_FRAME_INDEX_MAX_SIZE;
     nanoem_motion_light_keyframe_t *const *light_keyframes;
     nanoem_rsize_t num_light_keyframes, i;
@@ -7129,10 +7133,10 @@ nanoemMotionSearchClosestLightKeyframes(const nanoem_motion_t *motion, nanoem_fr
                 &next_nearest,
                 (nanoem_motion_keyframe_object_t **) prev_keyframe,
                 (nanoem_motion_keyframe_object_t **) next_keyframe,
-                (nanoem_motion_keyframe_object_t **) &last_keyframe);
+                &last_keyframe);
         }
         if (nanoem_is_not_null(next_keyframe) && !*next_keyframe) {
-            *next_keyframe = last_keyframe;
+            *next_keyframe = (nanoem_motion_light_keyframe_t *) last_keyframe;
         }
     }
 }
@@ -7140,7 +7144,8 @@ nanoemMotionSearchClosestLightKeyframes(const nanoem_motion_t *motion, nanoem_fr
 void APIENTRY
 nanoemMotionSearchClosestModelKeyframes(const nanoem_motion_t *motion, nanoem_frame_index_t base_index, nanoem_motion_model_keyframe_t **prev_keyframe, nanoem_motion_model_keyframe_t **next_keyframe)
 {
-    nanoem_motion_model_keyframe_t *current_keyframe, *last_keyframe = NULL;
+    nanoem_motion_model_keyframe_t *current_keyframe;
+    nanoem_motion_keyframe_object_t *last_keyframe = NULL;
     nanoem_frame_index_t prev_nearest = NANOEM_FRAME_INDEX_MAX_SIZE, next_nearest = NANOEM_FRAME_INDEX_MAX_SIZE;
     nanoem_motion_model_keyframe_t *const *model_keyframes;
     nanoem_rsize_t num_model_keyframes, i;
@@ -7161,10 +7166,10 @@ nanoemMotionSearchClosestModelKeyframes(const nanoem_motion_t *motion, nanoem_fr
                 &next_nearest,
                 (nanoem_motion_keyframe_object_t **) prev_keyframe,
                 (nanoem_motion_keyframe_object_t **) next_keyframe,
-                (nanoem_motion_keyframe_object_t **) &last_keyframe);
+                &last_keyframe);
         }
         if (nanoem_is_not_null(next_keyframe) && !*next_keyframe) {
-            *next_keyframe = last_keyframe;
+            *next_keyframe = (nanoem_motion_model_keyframe_t *) last_keyframe;
         }
     }
 }
@@ -7172,7 +7177,8 @@ nanoemMotionSearchClosestModelKeyframes(const nanoem_motion_t *motion, nanoem_fr
 void APIENTRY
 nanoemMotionSearchClosestMorphKeyframes(const nanoem_motion_t *motion, const nanoem_unicode_string_t *name, nanoem_frame_index_t base_index, nanoem_motion_morph_keyframe_t **prev_keyframe, nanoem_motion_morph_keyframe_t **next_keyframe)
 {
-    nanoem_motion_morph_keyframe_t *current_keyframe, *last_keyframe = NULL;
+    nanoem_motion_morph_keyframe_t *current_keyframe;
+    nanoem_motion_keyframe_object_t *last_keyframe = NULL;
     nanoem_frame_index_t prev_nearest = NANOEM_FRAME_INDEX_MAX_SIZE, next_nearest = NANOEM_FRAME_INDEX_MAX_SIZE;
     kh_keyframe_map_t *keyframes_map;
     khiter_t it, end;
@@ -7194,11 +7200,11 @@ nanoemMotionSearchClosestMorphKeyframes(const nanoem_motion_t *motion, const nan
                         &next_nearest,
                         (nanoem_motion_keyframe_object_t **) prev_keyframe,
                         (nanoem_motion_keyframe_object_t **) next_keyframe,
-                        (nanoem_motion_keyframe_object_t **) &last_keyframe);
+                        &last_keyframe);
                 }
             }
             if (nanoem_is_not_null(next_keyframe) && !*next_keyframe) {
-                *next_keyframe = last_keyframe;
+                *next_keyframe = (nanoem_motion_morph_keyframe_t *) last_keyframe;
             }
         }
     }
@@ -7207,7 +7213,8 @@ nanoemMotionSearchClosestMorphKeyframes(const nanoem_motion_t *motion, const nan
 void APIENTRY
 nanoemMotionSearchClosestSelfShadowKeyframes(const nanoem_motion_t *motion, nanoem_frame_index_t base_index, nanoem_motion_self_shadow_keyframe_t **prev_keyframe, nanoem_motion_self_shadow_keyframe_t **next_keyframe)
 {
-    nanoem_motion_self_shadow_keyframe_t *current_keyframe, *last_keyframe = NULL;
+    nanoem_motion_self_shadow_keyframe_t *current_keyframe;
+    nanoem_motion_keyframe_object_t *last_keyframe = NULL;
     nanoem_frame_index_t prev_nearest = NANOEM_FRAME_INDEX_MAX_SIZE, next_nearest = NANOEM_FRAME_INDEX_MAX_SIZE;
     nanoem_motion_self_shadow_keyframe_t *const *self_shadow_keyframes;
     nanoem_rsize_t num_self_shadow_keyframes, i;
@@ -7228,10 +7235,10 @@ nanoemMotionSearchClosestSelfShadowKeyframes(const nanoem_motion_t *motion, nano
                 &next_nearest,
                 (nanoem_motion_keyframe_object_t **) prev_keyframe,
                 (nanoem_motion_keyframe_object_t **) next_keyframe,
-                (nanoem_motion_keyframe_object_t **) &last_keyframe);
+                &last_keyframe);
         }
         if (nanoem_is_not_null(next_keyframe) && !*next_keyframe) {
-            *next_keyframe = last_keyframe;
+            *next_keyframe = (nanoem_motion_self_shadow_keyframe_t *) last_keyframe;
         }
     }
 }

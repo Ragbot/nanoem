@@ -1,5 +1,5 @@
 # pep_coreclr
-option(${PROJECT_NAME_PREFIX}_INSTALL_PEP_CORECLR_PLUGIN OFF)
+option(${PROJECT_NAME_PREFIX}_INSTALL_PEP_CORECLR_PLUGIN "Enable installing PEP coreclr plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_PEP_CORECLR_PLUGIN)
   set(_plugin_name plugin_pep_coreclr)
   add_library(${_plugin_name} SHARED ${CMAKE_CURRENT_SOURCE_DIR}/pep_coreclr.cc

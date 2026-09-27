@@ -873,19 +873,31 @@ ImGuiApplicationMenuBuilder::FileDialogState::draw(BaseApplicationClient *client
     if (IGFD_DisplayDialog(instance, windowID(), 0, minimumSize, maximumSize)) {
         if (IGFD_IsOk(instance)) {
             char *filePathPtr = IGFD_GetCurrentPath(instance), *currentFileNamePtr = IGFD_GetCurrentFileName(instance);
-            String filePath(filePathPtr), canonicalizedFilePath;
-            filePath.append("/");
-            filePath.append(currentFileNamePtr);
+            String filePath(filePathPtr ? filePathPtr : ""), canonicalizedFilePath;
+            if (currentFileNamePtr) {
+                if (!filePath.empty()) {
+                    filePath.append("/");
+                }
+                filePath.append(currentFileNamePtr);
+            }
             if (filePathPtr) {
                 delete[] filePathPtr;
             }
             if (currentFileNamePtr) {
                 delete[] currentFileNamePtr;
             }
-            FileUtils::canonicalizePathSeparator(filePath, canonicalizedFilePath);
-            const URI fileURI(URI::createFromFilePath(canonicalizedFilePath.c_str()));
-            execute(fileURI, client);
-            m_lastOpenDirectoryPath = fileURI.absolutePathByDeletingLastPathComponent();
+            if (filePath.empty()) {
+                /* IGFD_GetCurrentPath/IGFD_GetCurrentFileName return nullptr when unknown, so the
+                 * selection may end up being empty. Treat that the same way as a cancellation
+                 * instead of dereferencing a null pointer. */
+                execute(URI(), client);
+            }
+            else {
+                FileUtils::canonicalizePathSeparator(filePath, canonicalizedFilePath);
+                const URI fileURI(URI::createFromFilePath(canonicalizedFilePath.c_str()));
+                execute(fileURI, client);
+                m_lastOpenDirectoryPath = fileURI.absolutePathByDeletingLastPathComponent();
+            }
         }
         else {
             execute(URI(), client);
@@ -946,7 +958,18 @@ ImGuiApplicationMenuBuilder::OpenFileDialogState::flags() const NANOEM_DECL_NOEX
 void
 ImGuiApplicationMenuBuilder::SaveFileDialogState::execute(const URI &fileURI, BaseApplicationClient *client)
 {
-    client->sendSaveFileMessage(fileURI, m_type);
+    URI resolved(fileURI);
+    /* ImGuiFileDialog only rewrites the extension for a single extension filter, while the export
+     * dialogs pass their containers as a collection (.mp4,.mkv,.avi), so a path confirmed without
+     * an extension keeps it as is. Containers cannot be derived from such a name, which makes the
+     * encoder plugin reject the export, hence the fallback to the first allowed extension. */
+    if (!resolved.isEmpty() && resolved.pathExtension().empty() && !m_allowedExtensions.empty()) {
+        String path(resolved.absolutePathConstString());
+        path.append(".");
+        path.append(m_allowedExtensions[0].c_str());
+        resolved = URI::createFromFilePath(path.c_str());
+    }
+    client->sendSaveFileMessage(resolved, m_type);
 }
 
 const char *

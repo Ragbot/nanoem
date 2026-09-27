@@ -19,7 +19,7 @@ namespace imgui {
 
 struct PreferenceDialog : BaseNonModalDialogWindow {
     static const char *const kIdentifier;
-    PreferenceDialog(BaseApplicationService *applicationPtr, ImGuiWindow *parent);
+    PreferenceDialog(BaseApplicationService *applicationPtr);
     bool draw(Project *project);
     const char *selectedMenuItemString(Project *project, const ApplicationMenuBuilder::MenuItemType *items,
         nanoem_rsize_t numItems) const NANOEM_DECL_NOEXCEPT;
@@ -31,8 +31,6 @@ struct PreferenceDialog : BaseNonModalDialogWindow {
     const char *selectedHighDPIViewportModeString(
         ApplicationPreference::HighDPIViewportModeType value) const NANOEM_DECL_NOEXCEPT;
     const char *selectedFilePathModeMenuItemString(Project::FilePathMode value) const NANOEM_DECL_NOEXCEPT;
-
-    ImGuiWindow *m_parent;
 };
 
 } /* namespace imgui */

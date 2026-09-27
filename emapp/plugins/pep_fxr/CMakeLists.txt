@@ -1,5 +1,5 @@
 # pep_fxr
-option(${PROJECT_NAME_PREFIX}_INSTALL_PEP_FXR_PLUGIN OFF)
+option(${PROJECT_NAME_PREFIX}_INSTALL_PEP_FXR_PLUGIN "Enable installing PEP fxr plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_PEP_FXR_PLUGIN)
   set(NETHOST_PATH_WIN32 "C:/Program Files/dotnet/packs/Microsoft.NETCore.App.Host.win-x64/3.0.0/runtimes/win-x64/native")
   set(NETHOST_PATH_MACOS "/usr/local/share/dotnet/packs/Microsoft.NETCore.App.Host.osx-x64/3.0.0/runtimes/osx-x64/native")

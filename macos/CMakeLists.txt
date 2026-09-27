@@ -44,7 +44,7 @@ endif()
 target_link_libraries(${NANOEM_EXECUTABLE_NAME} "-framework AudioUnit -framework AudioToolbox -framework CoreAudio -weak_framework Security")
 
 # integration
-option(NANOEM_ENABLE_TEST_RUNNER_OSX OFF)
+option(NANOEM_ENABLE_TEST_RUNNER_OSX "Enable building the macOS test runner option." OFF)
 if(${NANOEM_ENABLE_TEST_RUNNER_OSX})
   set(_executable ${NANOEM_EXECUTABLE_NAME}_integration)
   add_executable(${_executable} ${CMAKE_CURRENT_SOURCE_DIR}/test.mm ${OSX_SOURCES})

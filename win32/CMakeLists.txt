@@ -47,7 +47,7 @@ if(NANOEM_ENABLE_D3D11ON12)
 endif()
 
 # integration
-option(NANOEM_ENABLE_TEST_RUNNER_WIN32 OFF)
+option(NANOEM_ENABLE_TEST_RUNNER_WIN32 "Enable building the Win32 test runner option." OFF)
 if(${NANOEM_ENABLE_TEST_RUNNER_WIN32})
   set(_name ${NANOEM_EXECUTABLE_NAME}_test)
   add_executable(${_name}

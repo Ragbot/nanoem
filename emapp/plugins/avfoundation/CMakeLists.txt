@@ -1,5 +1,5 @@
 # AVFoundation plugin
-option(${PROJECT_NAME_PREFIX}_INSTALL_AVFOUNDATION_PLUGIN OFF)
+option(${PROJECT_NAME_PREFIX}_INSTALL_AVFOUNDATION_PLUGIN "Enable installing AVFoundation plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_AVFOUNDATION_PLUGIN)
   set(_plugin_name plugin_avfoundation)
   add_library(${_plugin_name} SHARED ${CMAKE_CURRENT_SOURCE_DIR}/avfoundation.mm)

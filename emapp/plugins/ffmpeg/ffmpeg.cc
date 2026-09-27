@@ -48,6 +48,97 @@ handleFFmpegLog(void *ptr, int level, const char *fmt, va_list vl)
 #endif
 }
 
+static const AVCodec *
+findEncoderByName(const char *const *names, nanoem_rsize_t length)
+{
+    for (nanoem_rsize_t i = 0; i < length; i++) {
+        if (const AVCodec *codec = avcodec_find_encoder_by_name(names[i])) {
+            return codec;
+        }
+    }
+    return nullptr;
+}
+
+/* the registry order of avcodec_find_encoder() differs between ffmpeg builds, so resolve the
+ * lossy codecs by their actual encoder name first and only fall back to the registry */
+static const AVCodec *
+findVideoEncoder(AVCodecID id)
+{
+    switch (id) {
+    case AV_CODEC_ID_AV1: {
+        static const char *kNames[] = { "libaom-av1", "libsvtav1", "librav1e" };
+        if (const AVCodec *codec = findEncoderByName(kNames, sizeof(kNames) / sizeof(kNames[0]))) {
+            return codec;
+        }
+        break;
+    }
+    case AV_CODEC_ID_H264: {
+        static const char *kNames[] = { "libx264" };
+        if (const AVCodec *codec = findEncoderByName(kNames, sizeof(kNames) / sizeof(kNames[0]))) {
+            return codec;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return avcodec_find_encoder(id);
+}
+
+static AVSampleFormat
+preferredSampleFormat(const AVCodec *codec, AVSampleFormat fallback)
+{
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(61, 13, 100)
+    /* AVCodec::sample_fmts was replaced by avcodec_get_supported_config() in ffmpeg 7.1 */
+    const void *configs = nullptr;
+    int numConfigs = 0;
+    if (avcodec_get_supported_config(nullptr, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, &configs, &numConfigs) >= 0 &&
+        configs && numConfigs > 0) {
+        const AVSampleFormat *formats = static_cast<const AVSampleFormat *>(configs);
+        if (formats[0] != AV_SAMPLE_FMT_NONE) {
+            return formats[0];
+        }
+    }
+#else
+    nanoem_mark_unused(codec);
+#endif
+    return fallback;
+}
+
+/* the containers that can store each video codec (verified against ffmpeg's muxers); raw RGB
+ * video is rejected by both Matroska and MP4, and UT Video has no MP4 sample entry */
+static const char *const *
+containerExtensionsFor(AVCodecID id, nanoem_u32_t *length)
+{
+    static const char *kMP4AndMKVAndAVI[] = { "mp4", "mkv", "avi" };
+    static const char *kMKVAndAVI[] = { "mkv", "avi" };
+    static const char *kAVI[] = { "avi" };
+    switch (id) {
+    case AV_CODEC_ID_RAWVIDEO:
+        *length = sizeof(kAVI) / sizeof(kAVI[0]);
+        return kAVI;
+    case AV_CODEC_ID_UTVIDEO:
+        *length = sizeof(kMKVAndAVI) / sizeof(kMKVAndAVI[0]);
+        return kMKVAndAVI;
+    default:
+        *length = sizeof(kMP4AndMKVAndAVI) / sizeof(kMP4AndMKVAndAVI[0]);
+        return kMP4AndMKVAndAVI;
+    }
+}
+
+static const char *
+availableContainerExtensions(AVCodecID id)
+{
+    switch (id) {
+    case AV_CODEC_ID_RAWVIDEO:
+        return "avi";
+    case AV_CODEC_ID_UTVIDEO:
+        return "mkv, avi";
+    default:
+        return "mp4, mkv, avi";
+    }
+}
+
 struct FFmpegEncoder {
     static const char kAudioCodecComponentID[];
     static const char kVideoCodecComponentID[];
@@ -65,8 +156,10 @@ struct FFmpegEncoder {
         , m_scaleContext(nullptr)
         , m_tempAudioBuffer(nullptr)
         , m_audioCodecID(AV_CODEC_ID_PCM_S16LE)
-        , m_videoCodecID(AV_CODEC_ID_RAWVIDEO)
-        , m_videoPixelFormat(AV_PIX_FMT_BGR24)
+        , m_videoCodecID(AV_CODEC_ID_AV1)
+        , m_videoPixelFormat(AV_PIX_FMT_YUV420P)
+        , m_videoCodecIndex(0)
+        , m_videoPixelFormatIndex(0)
         , m_fps(0)
         , m_duration(0)
         , m_numFrequency(0)
@@ -76,6 +169,7 @@ struct FFmpegEncoder {
         , m_height(0)
         , m_yflip(0)
         , m_nextAudioPTS(0)
+        , m_failed(false)
     {
         *m_reason = 0;
     }
@@ -88,12 +182,15 @@ struct FFmpegEncoder {
     openAudioCodec()
     {
         const AVCodec *codec = avcodec_find_encoder(m_audioCodecID);
+        if (!codec) {
+            setFailureReason("The selected audio codec is not available in this FFmpeg build");
+            return AVERROR(ENOSYS);
+        }
         if ((m_audioStream = avformat_new_stream(m_formatContext, codec)) != nullptr) {
             m_audioCodecContext = avcodec_alloc_context3(codec);
-            m_audioCodecContext->sample_fmt = AV_SAMPLE_FMT_S16;
+            m_audioCodecContext->sample_fmt = preferredSampleFormat(codec, AV_SAMPLE_FMT_S16);
             m_audioCodecContext->sample_rate = std::max(m_numFrequency, kMinimumSampleRate);
-            m_audioCodecContext->channels = std::max(m_numChannels, kMinimumNumChannels);
-            m_audioCodecContext->channel_layout = av_get_default_channel_layout(m_audioCodecContext->channels);
+            av_channel_layout_default(&m_audioCodecContext->ch_layout, std::max(m_numChannels, kMinimumNumChannels));
             m_audioCodecContext->time_base.num = 1;
             m_audioCodecContext->time_base.den = m_audioCodecContext->sample_rate;
             AVSampleFormat inputSampleFormat;
@@ -122,10 +219,20 @@ struct FFmpegEncoder {
             if ((m_formatContext->oformat->flags & AVFMT_GLOBALHEADER) != 0) {
                 m_audioCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
             }
-            m_resampleContext = swr_alloc_set_opts(nullptr, m_audioCodecContext->channel_layout,
-                m_audioCodecContext->sample_fmt, m_audioCodecContext->sample_rate,
-                av_get_default_channel_layout(m_numChannels), inputSampleFormat, m_numFrequency, 0, nullptr);
-            swr_init(m_resampleContext);
+            AVChannelLayout inputChannelLayout;
+            av_channel_layout_default(&inputChannelLayout, m_numChannels);
+            int rc = swr_alloc_set_opts2(&m_resampleContext, &m_audioCodecContext->ch_layout,
+                m_audioCodecContext->sample_fmt, m_audioCodecContext->sample_rate, &inputChannelLayout,
+                inputSampleFormat, m_numFrequency, 0, nullptr);
+            if (rc == 0) {
+                rc = swr_init(m_resampleContext);
+            }
+            if (rc < 0) {
+                return rc;
+            }
+        }
+        if (!m_audioCodecContext) {
+            return AVERROR(ENOMEM);
         }
         int rc = avcodec_open2(m_audioCodecContext, codec, nullptr);
         if (rc == 0 && m_audioStream) {
@@ -136,7 +243,11 @@ struct FFmpegEncoder {
     int
     openVideoCodec()
     {
-        const AVCodec *codec = avcodec_find_encoder(m_videoCodecID);
+        const AVCodec *codec = findVideoEncoder(m_videoCodecID);
+        if (!codec) {
+            setFailureReason("The selected video codec is not available in this FFmpeg build");
+            return AVERROR(ENOSYS);
+        }
         if ((m_videoStream = avformat_new_stream(m_formatContext, codec)) != nullptr) {
             m_videoCodecContext = avcodec_alloc_context3(codec);
             m_videoCodecContext->width = static_cast<int>(m_width);
@@ -144,12 +255,27 @@ struct FFmpegEncoder {
             m_videoCodecContext->pix_fmt = m_videoPixelFormat;
             m_videoCodecContext->time_base.num = 1;
             m_videoCodecContext->time_base.den = static_cast<int>(m_fps);
+            m_videoCodecContext->framerate = av_make_q(static_cast<int>(m_fps), 1);
             if ((m_formatContext->oformat->flags & AVFMT_GLOBALHEADER) != 0) {
                 m_videoCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
             }
-            const AVPixelFormat sourcePixelFormat = AV_PIX_FMT_RGBA;
+            if (m_videoCodecID == AV_CODEC_ID_AV1 || m_videoCodecID == AV_CODEC_ID_H264) {
+                /* without an explicit bit rate both libaom-av1 and libx264 fall back to a quality
+                 * mode that either ignores the requested size or produces effectively lossless
+                 * output, so derive ~0.1 bits per pixel from the configured frame rate */
+                const nanoem_u64_t fps = m_fps > 0 ? m_fps : 60;
+                const nanoem_u64_t bitRate =
+                    std::max<nanoem_u64_t>(static_cast<nanoem_u64_t>(m_width) * m_height * fps / 10, 200000);
+                m_videoCodecContext->bit_rate = static_cast<int64_t>(bitRate);
+                m_videoCodecContext->gop_size = static_cast<int>(std::min<nanoem_u64_t>(fps, 300));
+            }
+            /* nanoem hands encoder plugins the viewport as BGRA on every platform */
+            const AVPixelFormat sourcePixelFormat = AV_PIX_FMT_BGRA;
             m_scaleContext = sws_getContext(m_width, m_height, sourcePixelFormat, m_width, m_height,
                 m_videoCodecContext->pix_fmt, SWS_BICUBIC, nullptr, nullptr, nullptr);
+        }
+        if (!m_videoCodecContext) {
+            return AVERROR(ENOMEM);
         }
         int rc = avcodec_open2(m_videoCodecContext, codec, nullptr);
         if (rc == 0 && m_videoStream) {
@@ -162,7 +288,22 @@ struct FFmpegEncoder {
     open(const char *filePath, nanoem_application_plugin_status_t *status)
     {
         bool succeeded = true;
-        avformat_alloc_output_context2(&m_formatContext, 0, 0, filePath);
+        *m_reason = 0;
+        /* the encoder object may be reused for multiple exports */
+        m_nextAudioPTS = 0;
+        m_failed = false;
+        const int rc = avformat_alloc_output_context2(&m_formatContext, nullptr, nullptr, filePath);
+        if (rc < 0 || !m_formatContext) {
+            if (m_formatContext) {
+                avformat_free_context(m_formatContext);
+                m_formatContext = nullptr;
+            }
+            setFailureReason("The container cannot be derived from the output file name");
+            if (status) {
+                *status = NANOEM_APPLICATION_PLUGIN_STATUS_ERROR_REFER_REASON;
+            }
+            return 0;
+        }
         if (m_numChannels > 0 && m_numFrequency > 0) {
             succeeded = wrapCall(openAudioCodec(), status);
         }
@@ -241,6 +382,59 @@ struct FFmpegEncoder {
         }
     }
     void
+    drainPackets(AVCodecContext *context, AVStream *stream, nanoem_application_plugin_status_t *status)
+    {
+        AVPacket *packet = av_packet_alloc();
+        if (!packet) {
+            return;
+        }
+        int rc = 0;
+        if (context && stream && m_formatContext) {
+            while ((rc = avcodec_receive_packet(context, packet)) == 0) {
+                av_packet_rescale_ts(packet, context->time_base, stream->time_base);
+                packet->stream_index = stream->index;
+                if (packet->duration <= 0) {
+                    /* flushed packets from some encoders carry no duration; leaving it at zero
+                     * makes the MP4 muxer derive a track duration that is one frame short, which
+                     * in turn drops the final frame when the file is played back */
+                    packet->duration = av_rescale_q(1, context->time_base, stream->time_base);
+                }
+                const int writeRC = av_interleaved_write_frame(m_formatContext, packet);
+                av_packet_unref(packet);
+                if (writeRC < 0) {
+                    rc = writeRC;
+                    break;
+                }
+            }
+        }
+        av_packet_free(&packet);
+        if (rc == AVERROR(EAGAIN) || rc == AVERROR_EOF) {
+            rc = 0;
+        }
+        if (rc < 0) {
+            m_failed = true;
+            makeFailureReason(rc, status);
+        }
+    }
+    void
+    drainAudioPackets(nanoem_application_plugin_status_t *status)
+    {
+        drainPackets(m_audioCodecContext, m_audioStream, status);
+    }
+    void
+    drainVideoPackets(nanoem_application_plugin_status_t *status)
+    {
+        drainPackets(m_videoCodecContext, m_videoStream, status);
+    }
+    void
+    flushCodec(AVCodecContext *context, AVStream *stream)
+    {
+        if (context && stream) {
+            avcodec_send_frame(context, nullptr);
+            drainPackets(context, stream, nullptr);
+        }
+    }
+    void
     encodeAudioFrame(nanoem_frame_index_t /* currentFrameIndex */, const nanoem_u8_t *data, nanoem_u32_t size,
         nanoem_application_plugin_status_t *status)
     {
@@ -270,19 +464,20 @@ struct FFmpegEncoder {
             }
             dataPtr = reinterpret_cast<const nanoem_u8_t *>(m_tempAudioBuffer);
         }
-        if (wrapCall(swr_convert(
-                         m_resampleContext, &output.m_opaque->data[0], outputSampleCount, &dataPtr, inputSampleCount),
-                status) &&
-            wrapCall(avcodec_send_frame(m_audioCodecContext, output), status)) {
-            AVPacket packet = {};
-            av_init_packet(&packet);
-            if (wrapCall(avcodec_receive_packet(m_audioCodecContext, &packet), status)) {
-                av_packet_rescale_ts(&packet, m_audioCodecContext->time_base, m_audioStream->time_base);
-                packet.stream_index = m_audioStream->index;
-                makeFailureReason(av_interleaved_write_frame(m_formatContext, &packet), status);
-                if (status && *status == NANOEM_APPLICATION_PLUGIN_STATUS_SUCCESS) {
-                    m_nextAudioPTS += outputSampleCount;
-                }
+        const int numConverted = swr_convert(
+            m_resampleContext, &output.m_opaque->data[0], outputSampleCount, &dataPtr, inputSampleCount);
+        if (numConverted < 0) {
+            m_failed = true;
+            makeFailureReason(numConverted, status);
+            return;
+        }
+        if (numConverted > 0) {
+            output.m_opaque->nb_samples = numConverted;
+            if (wrapCall(avcodec_send_frame(m_audioCodecContext, output), status)) {
+                /* the timestamps advance with the samples handed to the encoder, not with the
+                 * packets it emits: codecs with a delay emit them later than they are sent */
+                m_nextAudioPTS += numConverted;
+                drainAudioPackets(status);
             }
         }
     }
@@ -307,14 +502,14 @@ struct FFmpegEncoder {
             dataPtr[0] = data;
         }
         sws_scale(m_scaleContext, dataPtr, lineSizePtr, 0, m_height, frame.m_opaque->data, frame.m_opaque->linesize);
-        if (wrapCall(avcodec_send_frame(m_videoCodecContext, frame), status)) {
-            AVPacket packet = {};
-            av_init_packet(&packet);
-            if (wrapCall(avcodec_receive_packet(m_videoCodecContext, &packet), status)) {
-                av_packet_rescale_ts(&packet, m_videoCodecContext->time_base, m_videoStream->time_base);
-                packet.stream_index = m_videoStream->index;
-                makeFailureReason(av_interleaved_write_frame(m_formatContext, &packet), status);
-            }
+        int rc = avcodec_send_frame(m_videoCodecContext, frame);
+        if (rc == AVERROR(EAGAIN)) {
+            /* the encoder ran out of internal slots: write out what it has and retry */
+            drainVideoPackets(status);
+            rc = avcodec_send_frame(m_videoCodecContext, frame);
+        }
+        if (wrapCall(rc, status)) {
+            drainVideoPackets(status);
         }
     }
     int
@@ -326,15 +521,20 @@ struct FFmpegEncoder {
     close(nanoem_application_plugin_status_t *status)
     {
         if (m_formatContext) {
+            /* encoders with a lookahead (AV1, H.264, ...) buffer frames and only emit the packets
+             * for them when they are flushed, so drain them before writing the trailer */
+            flushCodec(m_videoCodecContext, m_videoStream);
+            flushCodec(m_audioCodecContext, m_audioStream);
             makeFailureReason(av_write_trailer(m_formatContext), status);
         }
         if (m_audioCodecContext) {
-            makeFailureReason(avcodec_close(m_audioCodecContext), status);
             avcodec_free_context(&m_audioCodecContext);
         }
         if (m_videoCodecContext) {
-            makeFailureReason(avcodec_close(m_videoCodecContext), status);
             avcodec_free_context(&m_videoCodecContext);
+        }
+        if (m_failed && status) {
+            *status = NANOEM_APPLICATION_PLUGIN_STATUS_ERROR_REFER_REASON;
         }
         if (m_resampleContext) {
             swr_close(m_resampleContext);
@@ -356,28 +556,108 @@ struct FFmpegEncoder {
         return 1;
     }
     void
+    buildSelectableVideoCodecs()
+    {
+        struct Candidate {
+            const char *label;
+            AVCodecID id;
+        };
+        static const Candidate kCandidates[] = {
+            { "AV1", AV_CODEC_ID_AV1 },
+            { "H.264", AV_CODEC_ID_H264 },
+            { "Raw Video", AV_CODEC_ID_RAWVIDEO },
+            { "UT Codec Video", AV_CODEC_ID_UTVIDEO },
+        };
+        m_videoCodecLabels.clear();
+        m_videoCodecIDs.clear();
+        for (nanoem_rsize_t i = 0; i < sizeof(kCandidates) / sizeof(kCandidates[0]); i++) {
+            /* only offer codecs the running ffmpeg build can actually encode with */
+            if (findVideoEncoder(kCandidates[i].id)) {
+                m_videoCodecLabels.push_back(kCandidates[i].label);
+                m_videoCodecIDs.push_back(kCandidates[i].id);
+            }
+        }
+        if (m_videoCodecIDs.empty()) {
+            m_videoCodecLabels.push_back("Raw Video");
+            m_videoCodecIDs.push_back(AV_CODEC_ID_RAWVIDEO);
+        }
+        if (m_videoCodecIndex >= m_videoCodecIDs.size()) {
+            m_videoCodecIndex = 0;
+        }
+    }
+    void
+    buildSelectablePixelFormats()
+    {
+        struct Candidate {
+            const char *label;
+            AVPixelFormat format;
+        };
+        static const Candidate kYUVPixelFormats[] = {
+            { "YUV420P", AV_PIX_FMT_YUV420P },
+            { "YUV422P", AV_PIX_FMT_YUV422P },
+            { "YUV444P", AV_PIX_FMT_YUV444P },
+        };
+        static const Candidate kRawVideoPixelFormats[] = {
+            { "RGB", AV_PIX_FMT_BGR24 },
+            { "RGBA", AV_PIX_FMT_BGRA },
+            { "YUV420P", AV_PIX_FMT_YUV420P },
+            { "YUV422P", AV_PIX_FMT_YUV422P },
+            { "YUV444P", AV_PIX_FMT_YUV444P },
+        };
+        static const Candidate kUTVideoPixelFormats[] = {
+            { "RGB", AV_PIX_FMT_GBRP },
+            { "RGBA", AV_PIX_FMT_GBRAP },
+            { "YUV420P", AV_PIX_FMT_YUV420P },
+            { "YUV422P", AV_PIX_FMT_YUV422P },
+            { "YUV444P", AV_PIX_FMT_YUV444P },
+        };
+        const AVCodecID codecID = m_videoCodecIDs[m_videoCodecIndex];
+        const Candidate *candidates = nullptr;
+        nanoem_rsize_t numCandidates = 0;
+        if (codecID == AV_CODEC_ID_AV1 || codecID == AV_CODEC_ID_H264) {
+            /* both encoders only take YUV input */
+            candidates = kYUVPixelFormats;
+            numCandidates = sizeof(kYUVPixelFormats) / sizeof(kYUVPixelFormats[0]);
+        }
+        else if (codecID == AV_CODEC_ID_RAWVIDEO) {
+            candidates = kRawVideoPixelFormats;
+            numCandidates = sizeof(kRawVideoPixelFormats) / sizeof(kRawVideoPixelFormats[0]);
+        }
+        else {
+            candidates = kUTVideoPixelFormats;
+            numCandidates = sizeof(kUTVideoPixelFormats) / sizeof(kUTVideoPixelFormats[0]);
+        }
+        m_pixelFormatLabels.clear();
+        m_pixelFormats.clear();
+        for (nanoem_rsize_t i = 0; i < numCandidates; i++) {
+            m_pixelFormatLabels.push_back(candidates[i].label);
+            m_pixelFormats.push_back(candidates[i].format);
+        }
+        if (m_videoPixelFormatIndex >= m_pixelFormats.size()) {
+            m_videoPixelFormatIndex = 0;
+        }
+    }
+    void
     loadUIWindowLayout(nanoem_application_plugin_status_t *status)
     {
-        const char *audioCodecs[] = { "PCM" };
-        const char *videoCodecs[] = { "Raw Video", "UT Codec Video" };
-        const char *videoPixelFormats[] = {
-            "RGB",
-            "RGBA",
-            "YUV420P",
-            "YUV422P",
-            "YUV444P",
-        };
+        static const char *kAudioCodecs[] = { "PCM" };
         clearUIWindowLayout();
-        const nanoem_u32_t numVideoCodecs = sizeof(videoCodecs) / sizeof(videoCodecs[0]);
+        buildSelectableVideoCodecs();
+        buildSelectablePixelFormats();
+        m_videoCodecID = m_videoCodecIDs[m_videoCodecIndex];
+        m_videoPixelFormat = m_pixelFormats[m_videoPixelFormatIndex];
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "Container (chosen when saving): %s",
+            availableContainerExtensions(m_videoCodecID));
+        m_components.push_back(createLabel(buffer));
         m_components.push_back(createLabel("Video Codec"));
-        m_components.push_back(createCombobox(kVideoCodecComponentID, videoCodecs, numVideoCodecs, 0));
-        const nanoem_u32_t numVideoPixelFormats = sizeof(videoPixelFormats) / sizeof(videoPixelFormats[0]);
+        m_components.push_back(createCombobox(
+            kVideoCodecComponentID, m_videoCodecLabels.data(), m_videoCodecLabels.size(), m_videoCodecIndex));
         m_components.push_back(createLabel("Video Pixel Format"));
-        m_components.push_back(
-            createCombobox(kVideoPixelFormatComponentID, videoPixelFormats, numVideoPixelFormats, 0));
-        const nanoem_u32_t numAudioCodecs = sizeof(audioCodecs) / sizeof(audioCodecs[0]);
+        m_components.push_back(createCombobox(kVideoPixelFormatComponentID, m_pixelFormatLabels.data(),
+            m_pixelFormatLabels.size(), m_videoPixelFormatIndex));
         m_components.push_back(createLabel("Audio Codec"));
-        m_components.push_back(createCombobox(kAudioCodecComponentID, audioCodecs, numAudioCodecs, 0));
+        m_components.push_back(createCombobox(kAudioCodecComponentID, kAudioCodecs, 1, 0));
         nanoem_application_plugin_status_assign_success(status);
     }
     void
@@ -412,46 +692,34 @@ struct FFmpegEncoder {
     void
     setUIComponentData(const char *id, const nanoem_u8_t *data, nanoem_u32_t length, int *reloadLayout)
     {
-        nanoem_mark_unused(id);
-        nanoem_mark_unused(reloadLayout);
         if (Nanoem__Application__Plugin__UIComponent *component =
                 nanoem__application__plugin__uicomponent__unpack(nullptr, length, data)) {
-            if (StringUtils::equals(id, kAudioCodecComponentID)) {
-                switch (component->combo_box->selected_index) {
-                case 0:
-                    m_audioCodecID = AV_CODEC_ID_PCM_S16LE;
-                    break;
-                }
+            if (StringUtils::equals(id, kAudioCodecComponentID) && component->combo_box->selected_index == 0) {
+                m_audioCodecID = AV_CODEC_ID_PCM_S16LE;
             }
             else if (StringUtils::equals(id, kVideoCodecComponentID)) {
-                switch (component->combo_box->selected_index) {
-                case 0:
-                    m_videoPixelFormat = AV_PIX_FMT_BGR24;
-                    m_videoCodecID = AV_CODEC_ID_RAWVIDEO;
-                    break;
-                case 1:
-                    m_videoPixelFormat = AV_PIX_FMT_GBRP;
-                    m_videoCodecID = AV_CODEC_ID_UTVIDEO;
-                    break;
+                const nanoem_u32_t index = component->combo_box->selected_index;
+                if (index != m_videoCodecIndex) {
+                    m_videoCodecIndex = index;
+                    if (index < m_videoCodecIDs.size()) {
+                        m_videoCodecID = m_videoCodecIDs[index];
+                    }
+                    /* the pixel format candidates depend on the codec, so reset the selection and
+                     * let the dialog rebuild this window with the new list */
+                    m_videoPixelFormatIndex = 0;
+                    if (m_videoPixelFormatIndex < m_pixelFormats.size()) {
+                        m_videoPixelFormat = m_pixelFormats[m_videoPixelFormatIndex];
+                    }
+                    if (reloadLayout) {
+                        *reloadLayout = 1;
+                    }
                 }
             }
             else if (StringUtils::equals(id, kVideoPixelFormatComponentID)) {
-                switch (component->combo_box->selected_index) {
-                case 0:
-                    m_videoPixelFormat = m_videoCodecID == AV_CODEC_ID_RAWVIDEO ? AV_PIX_FMT_BGR24 : AV_PIX_FMT_GBRP;
-                    break;
-                case 1:
-                    m_videoPixelFormat = m_videoCodecID == AV_CODEC_ID_RAWVIDEO ? AV_PIX_FMT_BGRA : AV_PIX_FMT_GBRAP;
-                    break;
-                case 2:
-                    m_videoPixelFormat = AV_PIX_FMT_YUV420P;
-                    break;
-                case 3:
-                    m_videoPixelFormat = AV_PIX_FMT_YUV422P;
-                    break;
-                case 4:
-                    m_videoPixelFormat = AV_PIX_FMT_YUV444P;
-                    break;
+                const nanoem_u32_t index = component->combo_box->selected_index;
+                if (index < m_pixelFormats.size()) {
+                    m_videoPixelFormatIndex = index;
+                    m_videoPixelFormat = m_pixelFormats[index];
                 }
             }
             nanoem__application__plugin__uicomponent__free_unpacked(component, nullptr);
@@ -467,6 +735,16 @@ struct FFmpegEncoder {
     {
         return nullptr;
     }
+    void
+    setFailureReason(const char *message)
+    {
+        snprintf(m_reason, sizeof(m_reason), "%s", message);
+    }
+    AVCodecID
+    videoCodecID() const
+    {
+        return m_videoCodecID;
+    }
 
     int
     makeFailureReason(int rc, nanoem_application_plugin_status_t *status)
@@ -476,7 +754,10 @@ struct FFmpegEncoder {
             rc = 0;
         }
         else if (rc < 0) {
-            av_make_error_string(m_reason, sizeof(m_reason), rc);
+            /* keep the message that was set by the failing operation itself when there is one */
+            if (!m_reason[0]) {
+                av_make_error_string(m_reason, sizeof(m_reason), rc);
+            }
             result = false;
         }
         if (status) {
@@ -496,8 +777,7 @@ struct FFmpegEncoder {
             : m_opaque(av_frame_alloc())
         {
             m_opaque->format = parameters->format;
-            m_opaque->channel_layout = parameters->channel_layout;
-            m_opaque->channels = parameters->channels;
+            av_channel_layout_copy(&m_opaque->ch_layout, &parameters->ch_layout);
             m_opaque->sample_rate = parameters->sample_rate;
             m_opaque->nb_samples = numSamplesPerFrame;
             m_opaque->pts = pts;
@@ -540,6 +820,10 @@ struct FFmpegEncoder {
 
     char m_reason[1024];
     ComponentList m_components;
+    std::vector<const char *> m_videoCodecLabels;
+    std::vector<AVCodecID> m_videoCodecIDs;
+    std::vector<const char *> m_pixelFormatLabels;
+    std::vector<AVPixelFormat> m_pixelFormats;
     AVFormatContext *m_formatContext;
     AVStream *m_audioStream;
     AVStream *m_videoStream;
@@ -551,6 +835,8 @@ struct FFmpegEncoder {
     AVCodecID m_audioCodecID;
     AVCodecID m_videoCodecID;
     AVPixelFormat m_videoPixelFormat;
+    nanoem_u32_t m_videoCodecIndex;
+    nanoem_u32_t m_videoPixelFormatIndex;
     nanoem_u32_t m_fps;
     nanoem_u32_t m_duration;
     int m_numFrequency;
@@ -560,6 +846,7 @@ struct FFmpegEncoder {
     nanoem_u32_t m_height;
     nanoem_u32_t m_yflip;
     nanoem_i64_t m_nextAudioPTS;
+    bool m_failed;
 };
 const char FFmpegEncoder::kAudioCodecComponentID[] = "ffmpeg.audio-codec";
 const char FFmpegEncoder::kVideoCodecComponentID[] = "ffmpeg.video-codec";
@@ -681,7 +968,7 @@ struct FFmpegDecoder {
             break;
         }
         case NANOEM_APPLICATION_PLUGIN_DECODER_AUDIO_FORMAT_NUM_CHANNELS: {
-            nanoem_u32_t channels = m_audioCodecContext ? nanoem_u32_t(m_audioCodecContext->channels) : 0;
+            nanoem_u32_t channels = m_audioCodecContext ? nanoem_u32_t(m_audioCodecContext->ch_layout.nb_channels) : 0;
             Inline::assignOption(channels, value, size, status);
             break;
         }
@@ -821,26 +1108,31 @@ struct FFmpegDecoder {
     bool
     decodeFrame(AVFormatContext *format, AVCodecContext *codec, int streamIndex, AVFrame *&frame, int &result)
     {
-        AVPacket packet = {};
-        av_init_packet(&packet);
+        AVPacket *packet = av_packet_alloc();
+        if (!packet) {
+            result = AVERROR(ENOMEM);
+            return false;
+        }
         while (true) {
-            result = av_read_frame(format, &packet);
+            result = av_read_frame(format, packet);
             if (result != 0) {
                 break;
             }
-            else if (packet.stream_index != streamIndex) {
+            else if (packet->stream_index != streamIndex) {
+                av_packet_unref(packet);
                 continue;
             }
-            result = avcodec_send_packet(codec, &packet);
+            result = avcodec_send_packet(codec, packet);
+            av_packet_unref(packet);
             if (result != 0 && result != AVERROR(EAGAIN)) {
                 break;
             }
-            av_packet_unref(&packet);
             result = avcodec_receive_frame(codec, frame);
             if (result == 0 || result != AVERROR(EAGAIN)) {
                 break;
             }
         }
+        av_packet_free(&packet);
         return result == 0;
     }
     nanoem_i64_t
@@ -852,8 +1144,8 @@ struct FFmpegDecoder {
     void
     closeAudio(nanoem_application_plugin_status_t *status)
     {
+        nanoem_mark_unused(status);
         if (m_audioCodecContext && m_audioStreamIndex >= 0) {
-            makeFailureReason(avcodec_close(m_audioCodecContext), status);
             m_audioStreamIndex = -1;
         }
         avformat_close_input(&m_audioFormatContext);
@@ -861,8 +1153,8 @@ struct FFmpegDecoder {
     void
     closeVideo(nanoem_application_plugin_status_t *status)
     {
+        nanoem_mark_unused(status);
         if (m_videoCodecContext && m_videoStreamIndex >= 0) {
-            makeFailureReason(avcodec_close(m_videoCodecContext), status);
             m_videoStreamIndex = -1;
         }
         avformat_close_input(&m_videoFormatContext);
@@ -998,11 +1290,14 @@ nanoemApplicationPluginEncoderInterrupt(nanoem_application_plugin_encoder_t *enc
 
 const char *const *APIENTRY
 nanoemApplicationPluginEncoderGetAllAvailableVideoFormatExtensions(
-    const nanoem_application_plugin_encoder_t * /* encoder */, nanoem_u32_t *length)
+    const nanoem_application_plugin_encoder_t *encoder, nanoem_u32_t *length)
 {
-    static const char *kFormatExtensions[] = { "avi" /* , "mkv" */ };
-    *length = sizeof(kFormatExtensions) / sizeof(kFormatExtensions[0]);
-    return kFormatExtensions;
+    static const char *kFormatExtensions[] = { "mp4", "mkv", "avi" };
+    if (!length) {
+        return kFormatExtensions;
+    }
+    const AVCodecID codecID = nanoem_is_not_null(encoder) ? encoder->videoCodecID() : AV_CODEC_ID_RAWVIDEO;
+    return containerExtensionsFor(codecID, length);
 }
 
 void APIENTRY

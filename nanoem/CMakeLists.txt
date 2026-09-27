@@ -3,7 +3,19 @@ include(CheckCSourceCompiles)
 option(NANOEM_ENABLE_MUTABLE "Enable mutable API option." ON)
 option(NANOEM_ENABLE_JSON "Enable JSON API with parson." ON)
 option(NANOEM_ENABLE_BULLET "Enable linking Bullet Physics option." ON)
-option(NANOEM_ENABLE_ICU "Enable linking ICU option." OFF)
+# Unicode string conversion backend.
+# Windows (MBWC), macOS (CFString) and Emscripten pick their own backend below, and Qt can be selected
+# explicitly.  Everywhere else (Linux, *BSD, ...) ICU is the only backend, so turn it on automatically
+# whenever a usable ICU can be found; without a backend every non-ASCII string (PMD/VMD CP932 and
+# PMX UTF-16 names) would be passed through unconverted.
+set(_nanoem_enable_icu_default OFF)
+if(NOT WIN32 AND NOT APPLE AND NOT EMSCRIPTEN AND NOT NANOEM_ENABLE_QT)
+  find_package(ICU QUIET COMPONENTS data i18n uc)
+  if(ICU_FOUND)
+    set(_nanoem_enable_icu_default ON)
+  endif()
+endif()
+option(NANOEM_ENABLE_ICU "Enable linking ICU option." ${_nanoem_enable_icu_default})
 option(NANOEM_ENABLE_NMD "Enable building NMD loader" ON)
 option(NANOEM_ENABLE_DOCUMENT "Enable PMM API option" ON)
 option(NANOEM_ENABLE_OPENMP "Enable building nanoem with OpenMP." OFF)
@@ -113,15 +125,25 @@ elseif(NANOEM_ENABLE_ICU)
   find_library(ICU4C_DATA_LIBRARY_RELEASE NAMES icudata icudt PATH_SUFFIXES lib PATHS ${ICU4C_INSTALL_PATH_RELEASE} NO_DEFAULT_PATH)
   mark_as_advanced(ICU4C_INCLUDE_DIR ICU4C_I18N_LIBRARY_DEBUG ICU4C_UC_LIBRARY_DEBUG ICU4C_DATA_LIBRARY_DEBUG
                    ICU4C_I18N_LIBRARY_RELEASE ICU4C_UC_LIBRARY_RELEASE ICU4C_DATA_LIBRARY_RELEASE)
+  if(NOT ICU4C_INCLUDE_DIR OR NOT ICU4C_I18N_LIBRARY_RELEASE OR NOT ICU4C_UC_LIBRARY_RELEASE OR NOT
+     ICU4C_DATA_LIBRARY_RELEASE)
+    # no pre-built bundled ICU under dependencies/icu: fall back to the system installed ICU
+    find_package(ICU REQUIRED COMPONENTS data i18n uc)
+    set(ICU4C_INCLUDE_DIR ${ICU_INCLUDE_DIRS})
+    set(_nanoem_icu_link_libraries ${ICU_LIBRARIES})
+    message(STATUS "[nanoem] using system ICU: ${ICU_LIBRARIES}")
+  else()
+    set(_nanoem_icu_link_libraries $<$<CONFIG:DEBUG>:${ICU4C_I18N_LIBRARY_DEBUG}>
+                                   $<$<CONFIG:DEBUG>:${ICU4C_UC_LIBRARY_DEBUG}>
+                                   $<$<CONFIG:DEBUG>:${ICU4C_DATA_LIBRARY_DEBUG}>
+                                   $<$<NOT:$<CONFIG:DEBUG>>:${ICU4C_I18N_LIBRARY_RELEASE}>
+                                   $<$<NOT:$<CONFIG:DEBUG>>:${ICU4C_UC_LIBRARY_RELEASE}>
+                                   $<$<NOT:$<CONFIG:DEBUG>>:${ICU4C_DATA_LIBRARY_RELEASE}>)
+  endif()
   list(APPEND NANOEM_COMPILE_DEFINITIONS NANOEM_ENABLE_ICU)
   list(APPEND NANOEM_INCLUDE_DIRECTORIES ${ICU4C_INCLUDE_DIR})
   list(APPEND NANOEM_EXTRA_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ext/icu.c)
-  list(APPEND NANOEM_LINK_LIBRARIES $<$<CONFIG:DEBUG>:${ICU4C_I18N_LIBRARY_DEBUG}>
-                                    $<$<CONFIG:DEBUG>:${ICU4C_UC_LIBRARY_DEBUG}>
-                                    $<$<CONFIG:DEBUG>:${ICU4C_DATA_LIBRARY_DEBUG}>
-                                    $<$<NOT:$<CONFIG:DEBUG>>:${ICU4C_I18N_LIBRARY_RELEASE}>
-                                    $<$<NOT:$<CONFIG:DEBUG>>:${ICU4C_UC_LIBRARY_RELEASE}>
-                                    $<$<NOT:$<CONFIG:DEBUG>>:${ICU4C_DATA_LIBRARY_RELEASE}>)
+  list(APPEND NANOEM_LINK_LIBRARIES ${_nanoem_icu_link_libraries})
   message(STATUS "[nanoem] ICU unicode string conversion is enabled")
 elseif(WIN32)
   list(APPEND NANOEM_COMPILE_DEFINITIONS NANOEM_ENABLE_MBWC WIN32_LEAN_AND_MEAN VC_EXTRALEAN NOMINMAX)

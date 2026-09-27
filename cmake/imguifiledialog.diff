@@ -1,0 +1,40 @@
+diff --git a/ImGuiFileDialog.cpp b/ImGuiFileDialog.cpp
+index a9e4a39..8e1a2ab 100644
+--- a/ImGuiFileDialog.cpp
++++ b/ImGuiFileDialog.cpp
+@@ -5225,7 +5225,7 @@ IMGUIFILEDIALOG_API bool IGFD_WasKeyOpenedThisFrame(ImGuiFileDialog* vContext,
+ {
+ 	if (vContext)
+ 	{
+-		vContext->WasOpenedThisFrame(vKey);
++		return vContext->WasOpenedThisFrame(vKey);
+ 	}
+ 
+ 	return false;
+@@ -5235,7 +5235,7 @@ IMGUIFILEDIALOG_API bool IGFD_WasOpenedThisFrame(ImGuiFileDialog* vContext)
+ {
+ 	if (vContext)
+ 	{
+-		vContext->WasOpenedThisFrame();
++		return vContext->WasOpenedThisFrame();
+ 	}
+ 
+ 	return false;
+@@ -5246,7 +5246,7 @@ IMGUIFILEDIALOG_API bool IGFD_IsKeyOpened(ImGuiFileDialog* vContext,
+ {
+ 	if (vContext)
+ 	{
+-		vContext->IsOpened(vCurrentOpenedKey);
++		return vContext->IsOpened(vCurrentOpenedKey);
+ 	}
+ 
+ 	return false;
+@@ -5256,7 +5256,7 @@ IMGUIFILEDIALOG_API bool IGFD_IsOpened(ImGuiFileDialog* vContext)
+ {
+ 	if (vContext)
+ 	{
+-		vContext->IsOpened();
++		return vContext->IsOpened();
+ 	}
+ 
+ 	return false;

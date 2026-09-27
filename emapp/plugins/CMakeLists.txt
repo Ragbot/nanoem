@@ -1,5 +1,5 @@
-option(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_TEST_HOST OFF)
-option(${PROJECT_NAME_PREFIX}_ENABLE_PEPLUGIN_COMPAT OFF)
+option(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_TEST_HOST "Enable building the plugin test host option." OFF)
+option(${PROJECT_NAME_PREFIX}_ENABLE_PEPLUGIN_COMPAT "Enable building the PE plugin compatibility option." OFF)
 
 mark_as_advanced(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_TEST_HOST ${PROJECT_NAME_PREFIX}_ENABLE_PEPLUGIN)
 if(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_TEST_HOST)
@@ -11,7 +11,7 @@ if(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_TEST_HOST)
   target_link_libraries(${PROJECT_NAME}_plugin_test_host ${PROJECT_NAME}_plugin_test_dso bx)
 endif()
 
-option(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_INIT_GENERATOR OFF)
+option(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_INIT_GENERATOR "Enable building the plugin init generator option." OFF)
 if(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_INIT_GENERATOR)
   find_library(CLANG_LIBRARY NAMES clang libclang PATH_SUFFIXES lib PATHS /usr/local/opt/llvm "C:/Program Files/LLVM")
   find_path(CLANG_INCLUDE_PATH NAMES clang-c/Index.h PATH_SUFFIXES include PATHS /usr/local/opt/llvm "C:/Program Files/LLVM")
@@ -39,7 +39,7 @@ if(${PROJECT_NAME_PREFIX}_ENABLE_PLUGIN_INIT_GENERATOR)
 endif()
 
 # aviutl
-option(${PROJECT_NAME_PREFIX}_INSTALL_AVIUTL_PLUGIN OFF)
+option(${PROJECT_NAME_PREFIX}_INSTALL_AVIUTL_PLUGIN "Enable installing AviUtl plugin option." OFF)
 if(${PROJECT_NAME_PREFIX}_INSTALL_AVIUTL_PLUGIN)
   set(_plugin_name plugin_aviutl)
   add_library(${_plugin_name} SHARED ${CMAKE_CURRENT_SOURCE_DIR}/src/aviutl.cc
@@ -54,7 +54,7 @@ endif()
 
 if(APPLE)
   # QTKit plugin
-  option(${PROJECT_NAME_PREFIX}_INSTALL_QTKIT_PLUGIN OFF)
+  option(${PROJECT_NAME_PREFIX}_INSTALL_QTKIT_PLUGIN "Enable installing QTKit plugin option." OFF)
   if(${PROJECT_NAME_PREFIX}_INSTALL_QTKIT_PLUGIN)
     set(_plugin_name plugin_qtkit)
     add_library(${_plugin_name} SHARED ${CMAKE_CURRENT_SOURCE_DIR}/obsolete/qtkit.mm)
