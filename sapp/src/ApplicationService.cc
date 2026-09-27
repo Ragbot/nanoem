@@ -6,6 +6,8 @@
 
 #include "ApplicationService.h"
 
+#include "AudioOutputDeviceEnumerator.h"
+
 #include "emapp/IProjectHolder.h"
 #include "emapp/StringUtils.h"
 #include "sokol/sokol_app.h"
@@ -21,7 +23,6 @@
 #include <atomic>
 
 #if defined(__linux__)
-#include <alsa/asoundlib.h>
 #include <stdlib.h>
 #endif /* __linux__ */
 
@@ -190,7 +191,12 @@ struct AudioPlayer : BaseAudioPlayer {
             desc.user_data = this;
             desc.num_channels = format.m_numChannels;
             desc.sample_rate = format.m_sampleRate;
-            m_deviceName = resolveAudioOutputDevice();
+            /*
+             * Devices owned by the sound server are routed by it (the card profile, the port and the
+             * default sink are resolved first) and the samples are then written to the system default
+             * ALSA device the sound server owns, plain ALSA devices are opened as they are.
+             */
+            m_deviceName = String(applyAudioOutputDevice(resolveAudioOutputDevice().c_str()).c_str());
             desc.device_name = m_deviceName.c_str();
             saudio_setup(&desc);
         }
@@ -227,104 +233,35 @@ struct AudioPlayer : BaseAudioPlayer {
 #if defined(__linux__)
 static const char kAudioOutputDevicesKey[] = "audio.output-devices";
 
-static bool
-containsAudioOutputDevice(const JSON_Array *devices, const char *value)
-{
-    const size_t count = json_array_get_count(devices);
-    for (size_t i = 0; i < count; i++) {
-        const JSON_Object *item = json_array_get_object(devices, i);
-        const char *name = item ? json_object_get_string(item, "name") : json_array_get_string(devices, i);
-        if (name && StringUtils::equals(name, value)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool
-isAudioOutputDeviceAvailable(const char *name)
-{
-    snd_pcm_t *pcm = nullptr;
-    const int result = snd_pcm_open(&pcm, name, SND_PCM_STREAM_PLAYBACK, 0);
-    if (result >= 0) {
-        snd_pcm_close(pcm);
-    }
-    return result >= 0;
-}
-
-static void
-appendAudioOutputDevice(JSON_Array *devices, const char *name, const char *description)
-{
-    if (name && name[0] != '\0' && !containsAudioOutputDevice(devices, name) && isAudioOutputDeviceAvailable(name)) {
-        if (JSON_Value *value = json_value_init_object()) {
-            JSON_Object *object = json_value_get_object(value);
-            json_object_set_string(object, "name", name);
-            json_object_set_string(object, "description", description && description[0] != '\0' ? description : name);
-            json_array_append_value(devices, value);
-        }
-    }
-}
-
 /*
- * Enumerates the ALSA playback devices and exposes them as a JSON array of { name, description }
- * objects in the pending application configuration so that the preference dialog is able to offer
- * them for selection.
+ * Publishes every playback destination of the machine as an array of { name, description } objects
+ * in the pending application configuration so that the preference dialog is able to offer them for
+ * selection.
  *
- * snd_device_name_hint() reports the PCM plugins too (lavrate, samplerate, oss, upmix, ...), which
- * are converters instead of selectable output devices, so the list is built from the control
- * interface instead: every playback capable PCM device of every installed card, probed before it
- * is published so that the menu only contains devices that can actually be opened.
- *
- * The list is refreshed on every startup to keep it in sync with the devices attached to the
- * system.
+ * The devices themselves are discovered by AudioOutputDeviceEnumerator.cc: the output ports of the
+ * sound server when there is one (labelled the way the desktop labels them), the playback devices of
+ * the installed ALSA cards otherwise. The list is refreshed on every startup to keep it in sync
+ * with the devices attached to the system.
  */
 static void
-enumerateAudioOutputDevices(JSON_Object *pending)
+writeAudioOutputDevices(JSON_Object *pending)
 {
     if (!pending) {
         return;
     }
+    AudioOutputDeviceList devices;
+    enumerateAudioOutputDevices(devices);
     JSON_Value *value = json_value_init_array();
-    JSON_Array *devices = json_value_get_array(value);
-    appendAudioOutputDevice(devices, "default", "System default output device");
-    int card = -1;
-    snd_card_next(&card);
-    while (card >= 0) {
-        char controlName[32];
-        StringUtils::format(controlName, sizeof(controlName), "hw:%d", card);
-        snd_ctl_t *control = nullptr;
-        if (snd_ctl_open(&control, controlName, 0) >= 0) {
-            snd_ctl_card_info_t *info = nullptr;
-            snd_ctl_card_info_alloca(&info);
-            if (snd_ctl_card_info(control, info) >= 0) {
-                const char *cardId = snd_ctl_card_info_get_id(info), *cardName = snd_ctl_card_info_get_name(info);
-                int device = -1;
-                snd_ctl_pcm_next_device(control, &device);
-                while (device >= 0) {
-                    snd_pcm_info_t *pcmInfo = nullptr;
-                    snd_pcm_info_alloca(&pcmInfo);
-                    snd_pcm_info_set_device(pcmInfo, device);
-                    snd_pcm_info_set_subdevice(pcmInfo, 0);
-                    snd_pcm_info_set_stream(pcmInfo, SND_PCM_STREAM_PLAYBACK);
-                    if (snd_ctl_pcm_info(control, pcmInfo) >= 0) {
-                        const char *label = snd_pcm_info_get_name(pcmInfo);
-                        if (!label || label[0] == '\0') {
-                            label = snd_pcm_info_get_id(pcmInfo);
-                        }
-                        char name[128], description[256];
-                        StringUtils::format(name, sizeof(name), "plughw:CARD=%s,DEV=%d", cardId, device);
-                        StringUtils::format(description, sizeof(description), "%s: %s",
-                            cardName && cardName[0] != '\0' ? cardName : cardId, label ? label : name);
-                        appendAudioOutputDevice(devices, name, description);
-                    }
-                    snd_ctl_pcm_next_device(control, &device);
-                }
-            }
-            snd_ctl_close(control);
+    JSON_Array *array = json_value_get_array(value);
+    for (const auto &device : devices) {
+        if (JSON_Value *item = json_value_init_object()) {
+            JSON_Object *object = json_value_get_object(item);
+            json_object_set_string(object, "name", device.m_name.c_str());
+            json_object_set_string(object, "description", device.m_description.c_str());
+            json_array_append_value(array, item);
         }
-        snd_card_next(&card);
     }
-    if (json_array_get_count(devices) > 0) {
+    if (json_array_get_count(array) > 0) {
         if (json_object_dotset_value(pending, kAudioOutputDevicesKey, value) != JSONSuccess) {
             /* parson does not take the ownership when the value cannot be stored */
             json_value_free(value);
@@ -344,7 +281,7 @@ ApplicationService::ApplicationService(const JSON_Value *config, ApplicationClie
     , m_bridge(bridge)
 {
 #if defined(__linux__)
-    enumerateAudioOutputDevices(json_object(applicationPendingChangeConfiguration()));
+    writeAudioOutputDevices(json_object(applicationPendingChangeConfiguration()));
 #endif /* __linux__ */
 }
 
