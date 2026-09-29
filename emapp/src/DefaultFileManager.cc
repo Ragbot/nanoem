@@ -17,6 +17,7 @@
 #include "emapp/ICamera.h"
 #include "emapp/IEventPublisher.h"
 #include "emapp/IFileManager.h"
+#include "emapp/ILight.h"
 #include "emapp/IModalDialog.h"
 #include "emapp/ModalDialogFactory.h"
 #include "emapp/Model.h"
@@ -24,6 +25,7 @@
 #include "emapp/PluginFactory.h"
 #include "emapp/Progress.h"
 #include "emapp/Project.h"
+#include "emapp/ShadowCamera.h"
 #include "emapp/StringUtils.h"
 #include "emapp/internal/ModelEffectSetting.h"
 #include "emapp/plugin/DecoderPlugin.h"
@@ -1330,6 +1332,13 @@ DefaultFileManager::saveProject(const URI &fileURI, Project *project, Error &err
                 writeScope.rollback(error);
             }
             if (succeeded) {
+                /* the camera/light/self-shadow state is stored in the project file, so those
+                 * modifications are no longer pending once it has been written successfully.
+                 * Models and accessories are saved as their own files and stay dirty until they
+                 * are saved themselves. */
+                project->globalCamera()->setDirty(false);
+                project->globalLight()->setDirty(false);
+                project->shadowCamera()->setDirty(false);
                 project->writeRedoMessage();
             }
         }
