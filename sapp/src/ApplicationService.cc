@@ -15,12 +15,14 @@
 #include "emapp/ApplicationPreference.h"
 #include "emapp/BaseAudioPlayer.h"
 #include "emapp/Error.h"
+#include "emapp/Project.h"
 #include "emapp/internal/OpenGLComputeShaderSkinDeformerFactory.h"
 #include "emapp/internal/OpenGLTransformFeedbackSkinDeformerFactory.h"
 #include "emapp/private/CommonInclude.h"
 
 #include "sokol/sokol_audio.h"
 #include <atomic>
+#include <string.h>
 
 #if defined(__linux__)
 #include <stdlib.h>
@@ -343,6 +345,35 @@ void
 ApplicationService::draw()
 {
     drawDefaultPass();
+    /* Project::isDirty() walks every bone and morph of every model, so only refresh the window
+     * title twice per second instead of on every frame */
+    if ((m_windowTitleCounter++ % 30) == 0) {
+        String title("nanoem");
+        if (const Project *project = projectHolder()->currentProject()) {
+            String name;
+            const URI &fileURI = project->fileURI();
+            if (!fileURI.isEmpty()) {
+                const String path(fileURI.absolutePathByDeletingPathExtension());
+                const char *fileName = strrchr(path.c_str(), '/');
+                fileName = fileName ? fileName + 1 : path.c_str();
+                if (fileName[0] != '\0') {
+                    name = fileName;
+                }
+            }
+            if (name.empty()) {
+                name = "untitled";
+            }
+            title = name;
+            if (project->isDirty()) {
+                title.append("*");
+            }
+            title.append(" - nanoem");
+        }
+        if (!StringUtils::equals(m_windowTitle.c_str(), title.c_str())) {
+            m_windowTitle = title;
+            sapp_set_window_title(title.c_str());
+        }
+    }
 }
 
 void
