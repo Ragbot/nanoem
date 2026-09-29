@@ -67,6 +67,44 @@ logOpenGLContextInformation()
             softwareRenderer ? "software rasterizer" : (renderer ? renderer : "unknown renderer"));
     }
 }
+
+/* Vsync has to be turned off at runtime rather than through sapp_desc: sokol coerces a
+ * swap_interval of 0 to 1 on every platform, and a vsync'd glXSwapBuffers blocks for about
+ * one second per frame whenever another window covers this one, because Xwayland stops
+ * presenting a hidden surface and no vblank is ever delivered. That froze the whole frame
+ * loop (viewport and video export) while e.g. a browser video played on top. The same
+ * sequence sokol performs for swap_interval 1 is issued here with 0 once the GLX context
+ * exists, and the loop is paced in software in MainWindow::draw() instead. */
+static void
+disableVsync()
+{
+    typedef void *(*GetCurrentDisplayProc)(void);            /* Display* */
+    typedef unsigned long (*GetCurrentDrawableProc)(void);   /* GLXDrawable is an XID */
+    typedef void (*SwapIntervalEXTProc)(void *, unsigned long, int); /* glXSwapIntervalEXT */
+    typedef int (*SwapIntervalMESAPROC)(unsigned int);       /* glXSwapIntervalMESA */
+    void *library = dlopen("libGL.so.1", RTLD_LAZY | RTLD_GLOBAL);
+    if (!library) {
+        library = dlopen("libGL.so", RTLD_LAZY | RTLD_GLOBAL);
+    }
+    if (!library) {
+        return;
+    }
+    auto getCurrentDisplay = reinterpret_cast<GetCurrentDisplayProc>(dlsym(library, "glXGetCurrentDisplay"));
+    auto getCurrentDrawable = reinterpret_cast<GetCurrentDrawableProc>(dlsym(library, "glXGetCurrentDrawable"));
+    void *display = getCurrentDisplay ? getCurrentDisplay() : nullptr;
+    unsigned long drawable = getCurrentDrawable ? getCurrentDrawable() : 0;
+    if (!display || !drawable) {
+        return;
+    }
+    /* the display must be the one owning the drawable, so resolve it from the current context
+     * exactly like sokol does instead of opening a second connection to the same server */
+    if (auto swapIntervalEXT = reinterpret_cast<SwapIntervalEXTProc>(dlsym(library, "glXSwapIntervalEXT"))) {
+        swapIntervalEXT(display, drawable, 0);
+    }
+    else if (auto swapIntervalMESA = reinterpret_cast<SwapIntervalMESAPROC>(dlsym(library, "glXSwapIntervalMESA"))) {
+        swapIntervalMESA(0);
+    }
+}
 #endif /* SOKOL_GLCORE33 */
 
 class ApplicationState NANOEM_DECL_SEALED : private NonCopyable {
@@ -177,6 +215,8 @@ sokol_main(int argc, char *argv[])
         /* the GL implementation decides where the viewport is rendered, and therefore where the
          * frames the video exporter reads back come from */
         logOpenGLContextInformation();
+        /* sokol has already applied swap_interval 1 to this drawable, undo it */
+        disableVsync();
 #endif /* SOKOL_GLCORE33 */
         state->initialize();
     };
@@ -247,6 +287,19 @@ sokol_main(int argc, char *argv[])
             window->handleQuitRequest();
             break;
         }
+        case SAPP_EVENTTYPE_FOCUSED: {
+            /* Not every window manager emits SAPP_EVENTTYPE_RESTORED when an iconified
+             * window is shown again (X11 WM_STATE NormalState), which would leave the
+             * project deactivated and drawDefaultPass() skipping every frame forever.
+             * Re-activating on focus guarantees the viewport starts rendering again. */
+            window->handleRestore();
+            break;
+        }
+        case SAPP_EVENTTYPE_UNFOCUSED: {
+            /* Deliberately does NOT deactivate: losing input focus (another window on top)
+             * must not stop rendering or interrupt a running video export. */
+            break;
+        }
         default:
             break;
         }
@@ -262,6 +315,13 @@ sokol_main(int argc, char *argv[])
         Allocator::destroy();
     };
     desc.window_title = "nanoem";
+    /* Requesting no vsync; note that sokol coerces 0 back to 1, so the swap interval is
+     * actually set to 0 from the init callback above (see disableVsync()): a vsync'd
+     * glXSwapBuffers blocks for ~1s per frame whenever another window covers this one,
+     * because Xwayland stops presenting a hidden surface and no vblank is delivered. That
+     * froze the frame loop (viewport and video export) while e.g. a browser video played on
+     * top. The loop is paced in software instead, see MainWindow::draw(). */
+    desc.swap_interval = 0;
     desc.html5_canvas_resize = true;
     desc.html5_premultiplied_alpha = true;
     desc.html5_ask_leave_site = true;

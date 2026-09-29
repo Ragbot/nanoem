@@ -8,6 +8,7 @@
 
 #include "bx/commandline.h"
 #include "bx/os.h"
+#include "bx/timer.h"
 #include "emapp/StringUtils.h"
 
 #include <dirent.h>
@@ -72,6 +73,20 @@ MainWindow::initialize()
 void
 MainWindow::draw()
 {
+    /* vsync is disabled (see sokol_main() in main.cc) so that glXSwapBuffers never blocks
+     * while another window covers this one; pace the frame loop in software instead so an
+     * uncovered window still runs at ~60 FPS instead of spinning at full speed */
+    static int64_t s_frameStartedAt = 0;
+    const int64_t startedAt = bx::getHPCounter();
+    if (s_frameStartedAt != 0) {
+        const int64_t frequency = bx::getHPFrequency();
+        const int64_t interval = frequency / 60;
+        const int64_t elapsed = startedAt - s_frameStartedAt;
+        if (elapsed < interval) {
+            bx::sleep((uint32_t) ((interval - elapsed) * 1000 / frequency));
+        }
+    }
+    s_frameStartedAt = bx::getHPCounter();
     m_service.draw();
     m_service.consumeDispatchAllCommandMessages();
     m_service.dispatchAllEventMessages();
