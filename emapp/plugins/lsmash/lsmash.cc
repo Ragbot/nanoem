@@ -181,12 +181,7 @@ private:
         for (nanoem_rsize_t i = 0; i < length; i++) {
             const nanoem_u8_t *src = data + i * 4;
             nanoem_u8_t *dst = sample->data + i * 3;
-            /* nanoem hands the frame over in BGRA (see CapturingPassState::readPassImage) while
-             * the QuickTime "raw " sample entry this plugin declares is 24-bit RGB, so the
-             * red and blue channels must be reordered here. */
-            dst[0] = src[2];
-            dst[1] = src[1];
-            dst[2] = src[0];
+            memcpy(dst, src, sizeof(*dst) * 3);
         }
         sample->cts = sample->dts = packet->m_currentFrameIndex;
         sample->index = m_videoSummaryIndex;

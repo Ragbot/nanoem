@@ -286,8 +286,10 @@ struct FFmpegEncoder {
                 m_videoCodecContext->bit_rate = static_cast<int64_t>(bitRate);
                 m_videoCodecContext->gop_size = static_cast<int>(std::min<nanoem_u64_t>(fps, 300));
             }
-            /* nanoem hands encoder plugins the viewport as BGRA on every platform */
-            const AVPixelFormat sourcePixelFormat = AV_PIX_FMT_BGRA;
+            /* the capture blit writes the swapchain channels through the .zyxw swizzle and
+             * CapturingPassState::readPassImage swaps the red and blue bytes back, so the buffer
+             * handed to the encoder is plain RGBA on every platform */
+            const AVPixelFormat sourcePixelFormat = AV_PIX_FMT_RGBA;
             m_scaleContext = sws_getContext(m_width, m_height, sourcePixelFormat, m_width, m_height,
                 m_videoCodecContext->pix_fmt, SWS_BICUBIC, nullptr, nullptr, nullptr);
         }

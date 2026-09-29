@@ -1326,13 +1326,15 @@ CapturingPassAsVideoState::start(Error &error)
     else if (m_encoderPluginPtr) {
         const sg_image_desc desc(outputImageDescription());
         const nanoem_u32_t fps = 60;
-        const bool topLeft = sg::query_features().origin_top_left;
         Project *project = stateController()->currentProject();
         m_encoderPluginPtr->setOption(NANOEM_APPLICATION_PLUGIN_ENCODER_OPTION_FPS, fps, error);
         m_encoderPluginPtr->setOption(NANOEM_APPLICATION_PLUGIN_ENCODER_OPTION_DURATION, duration(), error);
         m_encoderPluginPtr->setOption(NANOEM_APPLICATION_PLUGIN_ENCODER_OPTION_VIDEO_WIDTH, desc.width, error);
         m_encoderPluginPtr->setOption(NANOEM_APPLICATION_PLUGIN_ENCODER_OPTION_VIDEO_HEIGHT, desc.height, error);
-        m_encoderPluginPtr->setOption(NANOEM_APPLICATION_PLUGIN_ENCODER_OPTION_VIDEO_YFLIP, !topLeft, error);
+        /* the staging buffer handed to the encoder is already top-down: the capture blit flips the
+         * image on GL so that the bottom-up glReadPixels cancels out, and the PNG export writes this
+         * same buffer the right way up, so the encoder must not flip it a second time */
+        m_encoderPluginPtr->setOption(NANOEM_APPLICATION_PLUGIN_ENCODER_OPTION_VIDEO_YFLIP, false, error);
         const IAudioPlayer *audio = project->audioPlayer();
         if (audio->isLoaded()) {
             m_encoderPluginPtr->setOption(
