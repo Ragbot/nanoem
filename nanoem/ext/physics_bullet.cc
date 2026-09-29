@@ -289,7 +289,17 @@ struct nanoem_physics_world_t {
         m_worldInfo->m_dispatcher = m_dispatcher;
         m_worldInfo->m_sparsesdf.Initialize();
         m_fixedTimeStep = 1.0f / 60.0f;
-        m_maxSubSteps = INT_MAX;
+        /* Bound the number of catch-up substeps per stepSimulation call to avoid
+         * Bullet's "spiral of death". Passing INT_MAX disabled the clamp in
+         * btDiscreteDynamicsWorld::stepSimulation, so a single large delta (a
+         * timeline scrub, a playback stall, a breakpoint pause) executed
+         * hundreds of substeps inside one frame, which stalled the frame even
+         * further and compounded on the next one. Normal operation only needs a
+         * handful of substeps (delta is ~1/30s against a 1/60s fixed step, so
+         * 2, or up to 4 with the 2x time-step factor); anything beyond this cap
+         * is dropped rather than simulated. m_localTime is drained before the
+         * clamp, so the leftover is discarded instead of accumulating. */
+        m_maxSubSteps = 10;
         m_active = nanoem_false;
         setGroundEnable(nanoem_true);
     }
