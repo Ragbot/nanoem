@@ -38,6 +38,7 @@ static const char kGFXUniformBufferSize[] = "gfx.buffer.uniform";
 static const char kAudioOutputDevice[] = "application.preference.audio.output-device";
 static const char kAudioOutputDevices[] = "audio.output-devices";
 static const char kDefaultAudioOutputDevice[] = "default";
+static const char kLastDialogDirectoryPrefix[] = "dialog.directory";
 static const int kBufferSize = 128;
 
 } /* namespace anonymous */
@@ -423,6 +424,24 @@ void
 ApplicationPreference::setEffectCacheEnabled(bool value)
 {
     writeBool(kEffectCacheEnabled, value);
+}
+
+const char *
+ApplicationPreference::lastDialogDirectory(nanoem_u32_t type) const NANOEM_DECL_NOEXCEPT
+{
+    char key[kBufferSize];
+    StringUtils::format(key, sizeof(key), "%s.%u", kLastDialogDirectoryPrefix, static_cast<unsigned int>(type));
+    return readString(key, nullptr);
+}
+
+void
+ApplicationPreference::setLastDialogDirectory(nanoem_u32_t type, const char *value)
+{
+    if (value && value[0] != '\0') {
+        char key[kBufferSize];
+        StringUtils::format(key, sizeof(key), "%s.%u", kLastDialogDirectoryPrefix, static_cast<unsigned int>(type));
+        writeString(key, value);
+    }
 }
 
 const char *

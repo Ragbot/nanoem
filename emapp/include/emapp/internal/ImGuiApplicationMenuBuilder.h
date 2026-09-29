@@ -14,6 +14,7 @@
 
 namespace nanoem {
 
+class BaseApplicationService;
 class IEventPublisher;
 class IFileManager;
 class ITranslator;
@@ -25,7 +26,8 @@ class DraggingMorphSliderState;
 class ImGuiApplicationMenuBuilder NANOEM_DECL_SEALED : public ApplicationMenuBuilder {
 public:
     ImGuiApplicationMenuBuilder(BaseApplicationClient *client, IEventPublisher *eventPublisher,
-        IFileManager *fileManager, const ITranslator *translator, bool enableModelEditing);
+        IFileManager *fileManager, const ITranslator *translator, BaseApplicationService *application,
+        bool enableModelEditing);
     ~ImGuiApplicationMenuBuilder() NANOEM_DECL_NOEXCEPT;
 
     void draw(void *debugger);
@@ -106,9 +108,11 @@ private:
         virtual const char *windowTitle() const NANOEM_DECL_NOEXCEPT = 0;
         virtual int flags() const NANOEM_DECL_NOEXCEPT = 0;
 
-        void initialize(const StringList &extensions, nanoem_u32_t type);
-        void draw(BaseApplicationClient *client);
+        void initialize(const StringList &extensions, nanoem_u32_t type, BaseApplicationService *application);
+        void draw(BaseApplicationClient *client, BaseApplicationService *application);
         bool hasAllowedExtensions() const NANOEM_DECL_NOEXCEPT;
+
+        void rememberCurrentDirectory(BaseApplicationService *application) const NANOEM_DECL_NOEXCEPT;
 
         void *m_instance;
         StringList m_allowedExtensions;
@@ -133,6 +137,7 @@ private:
     BaseApplicationClient *m_client;
     IEventPublisher *m_eventPublisher;
     IFileManager *m_fileManager;
+    BaseApplicationService *m_applicationPtr;
     ImGuiMenuObjectList m_objects;
     ImGuiMenuBar m_rootMenu;
     ImGuiMenuItem m_rootMenuItem;

@@ -7,9 +7,13 @@
 #include "emapp/internal/ImGuiApplicationMenuBuilder.h"
 
 #include "emapp/Accessory.h"
+#include "emapp/ApplicationPreference.h"
+#include "emapp/BaseApplicationService.h"
 #include "emapp/BaseAudioPlayer.h"
+#include "emapp/FileUtils.h"
 #include "emapp/IEventPublisher.h"
 #include "emapp/IFileManager.h"
+#include "emapp/IProjectHolder.h"
 #include "emapp/ITranslator.h"
 #include "emapp/Model.h"
 #include "emapp/Project.h"
@@ -17,6 +21,7 @@
 #include "emapp/private/CommonInclude.h"
 
 #include "bx/handlealloc.h"
+#include "bx/os.h"
 #include "imgui/imgui.h"
 
 #define SOKOL_GFX_INCLUDED /* stub */
@@ -93,6 +98,108 @@ IGFD_CloseDialog(ImGuiFileDialog *vContext)
 
 namespace nanoem {
 namespace internal {
+
+static bool
+isProjectDialogType(nanoem_u32_t type) NANOEM_DECL_NOEXCEPT
+{
+    return type == IFileManager::kDialogTypeOpenProject || type == IFileManager::kDialogTypeSaveProjectFile;
+}
+
+static String
+homeDirectory()
+{
+    char buffer[1024] = { 0 };
+    uint32_t size = static_cast<uint32_t>(sizeof(buffer) - 1);
+    String path;
+    if (bx::getEnv(buffer, &size, "HOME") && buffer[0] != '\0') {
+        path = String(buffer);
+    }
+    return path;
+}
+
+/**
+ * @brief Returns the conventional directory holding the content of the given dialog type when the
+ * user has never opened such a dialog before.
+ */
+static String
+preferredDirectoryOfDialogType(nanoem_u32_t type)
+{
+    String path;
+    const String home(homeDirectory());
+    if (!home.empty()) {
+        const char *relativePath = nullptr;
+        switch (type) {
+        case IFileManager::kDialogTypeOpenModelFile:
+        case IFileManager::kDialogTypeSaveModelFile:
+            relativePath = "/Projects/MMD/Models";
+            break;
+        case IFileManager::kDialogTypeOpenModelMotionFile:
+        case IFileManager::kDialogTypeOpenCameraMotionFile:
+        case IFileManager::kDialogTypeOpenLightMotionFile:
+        case IFileManager::kDialogTypeSaveModelMotionFile:
+        case IFileManager::kDialogTypeSaveCameraMotionFile:
+        case IFileManager::kDialogTypeSaveLightMotionFile:
+            relativePath = "/Projects/MMD/Motions";
+            break;
+        default:
+            break;
+        }
+        if (relativePath) {
+            path = String(home);
+            path.append(relativePath);
+            if (!FileUtils::exists(path.c_str())) {
+                path = String();
+            }
+        }
+    }
+    return path;
+}
+
+static String
+projectDirectory(BaseApplicationService *application)
+{
+    String path;
+    if (application) {
+        if (const Project *project = application->projectHolder()->currentProject()) {
+            const URI &fileURI = project->fileURI();
+            if (!fileURI.isEmpty()) {
+                path = fileURI.absolutePathByDeletingLastPathComponent();
+            }
+        }
+    }
+    return path;
+}
+
+/**
+ * @brief Resolves the directory the file dialog of the given type starts at.
+ *
+ * The last directory the user visited for the same kind of dialog wins, then the directory of the
+ * currently opened project for the project dialogs, then the conventional content directory and
+ * finally the directory of the currently opened project.
+ */
+static String
+resolveInitialDirectory(nanoem_u32_t type, BaseApplicationService *application)
+{
+    String path;
+    if (application) {
+        if (const char *value = ApplicationPreference(application).lastDialogDirectory(type)) {
+            path = String(value);
+        }
+    }
+    if (path.empty() && isProjectDialogType(type)) {
+        path = projectDirectory(application);
+    }
+    if (path.empty()) {
+        path = preferredDirectoryOfDialogType(type);
+    }
+    if (path.empty()) {
+        path = projectDirectory(application);
+    }
+    if (path.empty()) {
+        path = String(".");
+    }
+    return path;
+}
 
 struct ImGuiApplicationMenuBuilder::NewProjectEventHandler {
     static void
@@ -284,25 +391,27 @@ struct ImGuiApplicationMenuBuilder::ExportVideoCallbackHandler {
 };
 
 ImGuiApplicationMenuBuilder::ImGuiApplicationMenuBuilder(BaseApplicationClient *client, IEventPublisher *eventPublisher,
-    IFileManager *fileManager, const ITranslator *translator, bool enableModelEditing)
+    IFileManager *fileManager, const ITranslator *translator, BaseApplicationService *application,
+    bool enableModelEditing)
     : ApplicationMenuBuilder(client, enableModelEditing)
     , m_translator(translator)
     , m_client(client)
     , m_eventPublisher(eventPublisher)
     , m_fileManager(fileManager)
+    , m_applicationPtr(application)
     , m_rootMenu(this)
     , m_rootMenuItem(&m_rootMenu)
 {
     m_client->addQueryOpenSingleFileDialogEventListener(
         [](void *userData, nanoem_u32_t value, const StringList &allowedExtensions) {
             ImGuiApplicationMenuBuilder *builder = static_cast<ImGuiApplicationMenuBuilder *>(userData);
-            builder->m_openFileDialogState.initialize(allowedExtensions, value);
+            builder->m_openFileDialogState.initialize(allowedExtensions, value, builder->m_applicationPtr);
         },
         this, false);
     m_client->addQuerySaveFileDialogEventListener(
         [](void *userData, nanoem_u32_t value, const StringList &allowedExtensions) {
             ImGuiApplicationMenuBuilder *builder = static_cast<ImGuiApplicationMenuBuilder *>(userData);
-            builder->m_saveFileDialogState.initialize(allowedExtensions, value);
+            builder->m_saveFileDialogState.initialize(allowedExtensions, value, builder->m_applicationPtr);
         },
         this, false);
 }
@@ -332,17 +441,18 @@ ImGuiApplicationMenuBuilder::draw(void *debugger)
         ImGui::EndMainMenuBar();
     }
     if (m_openFileDialogState.hasAllowedExtensions()) {
-        m_openFileDialogState.draw(m_client);
+        m_openFileDialogState.draw(m_client, m_applicationPtr);
     }
     else if (m_saveFileDialogState.hasAllowedExtensions()) {
-        m_saveFileDialogState.draw(m_client);
+        m_saveFileDialogState.draw(m_client, m_applicationPtr);
     }
 }
 
 void
 ImGuiApplicationMenuBuilder::openSaveProjectDialog(Project * /* project */)
 {
-    m_saveFileDialogState.initialize(Project::loadableExtensions(), IFileManager::kDialogTypeSaveProjectFile);
+    m_saveFileDialogState.initialize(
+        Project::loadableExtensions(), IFileManager::kDialogTypeSaveProjectFile, m_applicationPtr);
 }
 
 void
@@ -839,7 +949,6 @@ ImGuiApplicationMenuBuilder::ImGuiMenuBar::drawAllMenuItems()
 
 ImGuiApplicationMenuBuilder::FileDialogState::FileDialogState()
     : m_instance(nullptr)
-    , m_lastOpenDirectoryPath(".")
     , m_type(0)
 {
 }
@@ -852,19 +961,35 @@ ImGuiApplicationMenuBuilder::FileDialogState::~FileDialogState() NANOEM_DECL_NOE
 }
 
 void
-ImGuiApplicationMenuBuilder::FileDialogState::initialize(const StringList &extensions, nanoem_u32_t type)
+ImGuiApplicationMenuBuilder::FileDialogState::initialize(
+    const StringList &extensions, nanoem_u32_t type, BaseApplicationService *application)
 {
     if (m_allowedExtensions.empty()) {
         if (!m_instance) {
             m_instance = IGFD_Create();
         }
         m_allowedExtensions = extensions;
-        m_type = type;
+        if (type != m_type) {
+            m_type = type;
+            m_lastOpenDirectoryPath = String();
+        }
+        if (m_lastOpenDirectoryPath.empty()) {
+            m_lastOpenDirectoryPath = resolveInitialDirectory(type, application);
+        }
     }
 }
 
 void
-ImGuiApplicationMenuBuilder::FileDialogState::draw(BaseApplicationClient *client)
+ImGuiApplicationMenuBuilder::FileDialogState::rememberCurrentDirectory(
+    BaseApplicationService *application) const NANOEM_DECL_NOEXCEPT
+{
+    if (application && !m_lastOpenDirectoryPath.empty()) {
+        ApplicationPreference(application).setLastDialogDirectory(m_type, m_lastOpenDirectoryPath.c_str());
+    }
+}
+
+void
+ImGuiApplicationMenuBuilder::FileDialogState::draw(BaseApplicationClient *client, BaseApplicationService *application)
 {
     ImGuiFileDialog *instance = static_cast<ImGuiFileDialog *>(m_instance);
     const ImVec2 scale(ImGui::GetIO().DisplayFramebufferScale), minimumSize(540 * scale.x, 360 * scale.y),
@@ -897,6 +1022,7 @@ ImGuiApplicationMenuBuilder::FileDialogState::draw(BaseApplicationClient *client
                 const URI fileURI(URI::createFromFilePath(canonicalizedFilePath.c_str()));
                 execute(fileURI, client);
                 m_lastOpenDirectoryPath = fileURI.absolutePathByDeletingLastPathComponent();
+                rememberCurrentDirectory(application);
             }
         }
         else {
@@ -904,6 +1030,7 @@ ImGuiApplicationMenuBuilder::FileDialogState::draw(BaseApplicationClient *client
             if (char *path = IGFD_GetCurrentPath(instance)) {
                 m_lastOpenDirectoryPath = path;
                 delete[] path;
+                rememberCurrentDirectory(application);
             }
         }
         IGFD_CloseDialog(instance);
@@ -919,8 +1046,8 @@ ImGuiApplicationMenuBuilder::FileDialogState::draw(BaseApplicationClient *client
                 extension.append(",");
             }
         }
-        IGFD_OpenDialog(instance, windowID(), windowTitle(), extension.c_str(), m_lastOpenDirectoryPath.c_str(), "", 1,
-            nullptr, flags());
+        IGFD_OpenDialog(instance, windowID(), windowTitle(), extension.c_str(), m_lastOpenDirectoryPath.c_str(), "",
+            1, nullptr, flags());
     }
     ImGui::PopStyleVar();
 }

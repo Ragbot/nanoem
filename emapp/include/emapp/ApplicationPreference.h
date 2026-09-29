@@ -79,6 +79,8 @@ public:
     void setAudioOutputDevice(const char *value);
     StringList allAvailableAudioOutputDevices() const;
     String audioOutputDeviceDescription(const char *name) const;
+    const char *lastDialogDirectory(nanoem_u32_t type) const NANOEM_DECL_NOEXCEPT;
+    void setLastDialogDirectory(nanoem_u32_t type, const char *value);
 
 private:
     const char *readString(const char *key, const char *defaultValue) const NANOEM_DECL_NOEXCEPT;

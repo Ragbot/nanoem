@@ -1611,7 +1611,7 @@ ImGuiWindow::initialize(nanoem_f32_t windowDevicePixelRatio, nanoem_f32_t viewpo
         const ITranslator *translator = m_applicationPtr->translator();
         const ApplicationPreference preference(m_applicationPtr);
         m_menu = nanoem_new(ImGuiApplicationMenuBuilder(
-            client, eventPublisher, fileManager, translator, preference.isModelEditingEnabled()));
+            client, eventPublisher, fileManager, translator, m_applicationPtr, preference.isModelEditingEnabled()));
         m_menu->build();
     }
     nanoem_u32_t buffer[256];
