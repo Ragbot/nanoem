@@ -4775,20 +4775,25 @@ BaseApplicationService::handleCommandMessage(Nanoem__Application__Command *comma
         }
         break;
     }
-    case NANOEM__APPLICATION__COMMAND__TYPE_CONFIRM_BEFORE_EXPORTING_IMAGE: {
-        const ITranslator *tr = translator();
-        const char *title = tr->translate("nanoem.window.confirm-before-exporting-image.title");
-        const char *message = tr->translate("nanoem.window.confirm-before-exporting-image.message");
-        ModalDialogFactory::SaveConfirmDialog callback(handleSaveOnNewProject, handleDiscardOnNewProject);
-        addModalDialog(ModalDialogFactory::createConfirmSavingDialog(this, title, message, callback, this));
-        break;
-    }
+    case NANOEM__APPLICATION__COMMAND__TYPE_CONFIRM_BEFORE_EXPORTING_IMAGE:
     case NANOEM__APPLICATION__COMMAND__TYPE_CONFIRM_BEFORE_EXPORTING_VIDEO: {
-        const ITranslator *tr = translator();
-        const char *title = tr->translate("nanoem.window.confirm-before-exporting-video.title");
-        const char *message = tr->translate("nanoem.window.confirm-before-exporting-video.message");
-        ModalDialogFactory::SaveConfirmDialog callback(handleSaveOnNewProject, handleDiscardOnNewProject);
-        addModalDialog(ModalDialogFactory::createConfirmSavingDialog(this, title, message, callback, this));
+        const bool exportingVideo =
+            command->type_case == NANOEM__APPLICATION__COMMAND__TYPE_CONFIRM_BEFORE_EXPORTING_VIDEO;
+        if (project && project->isDirty() && !hasModalDialog()) {
+            const ITranslator *tr = translator();
+            const char *title = tr->translate(exportingVideo ? "nanoem.window.confirm-before-exporting-video.title"
+                                                             : "nanoem.window.confirm-before-exporting-image.title");
+            const char *message =
+                tr->translate(exportingVideo ? "nanoem.window.confirm-before-exporting-video.message"
+                                             : "nanoem.window.confirm-before-exporting-image.message");
+            ModalDialogFactory::SaveConfirmDialog callback(handleSaveOnNewProject, handleDiscardOnNewProject);
+            addModalDialog(ModalDialogFactory::createConfirmSavingDialog(this, title, message, callback, this));
+        }
+        else {
+            /* there is nothing to be saved, so behave as if the user had chosen not to save
+             * and proceed with exporting right away */
+            sendDiscardAfterConfirmEventMessage();
+        }
         break;
     }
     case NANOEM__APPLICATION__COMMAND__TYPE_REDO_ADD_BONE:
