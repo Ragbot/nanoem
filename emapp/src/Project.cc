@@ -2261,7 +2261,14 @@ Project::resizeUniformedViewportLayout(const Vector4UI16 &value)
         !isViewportCaptured()) {
         m_uniformViewportLayoutRect.second = value;
         if (isUniformedViewportImageSizeEnabled()) {
-            const Vector2UI16 imageSize(uniformedViewportImageSize(currentSize, m_uniformViewportImageSize.first));
+            /* Fit the configured (stable) viewport size into the layout rather than the previously
+             * fitted size: deriving from the previous size feeds the rounding error back in, which
+             * monotonically inflates the aspect ratio and collapses the viewport into a thin band
+             * over repeated resizes. */
+            const Vector2UI16 &baseSize =
+                (m_viewportImageSize.x > 0 && m_viewportImageSize.y > 0) ? m_viewportImageSize
+                                                                        : m_uniformViewportImageSize.first;
+            const Vector2UI16 imageSize(uniformedViewportImageSize(currentSize, baseSize));
             internalResizeUniformedViewportImage(imageSize);
         }
     }
@@ -6297,11 +6304,14 @@ Vector2UI16
 Project::uniformedViewportImageSize(
     const Vector2UI16 &viewportLayoutSize, const Vector2UI16 &viewportImageSize) NANOEM_DECL_NOEXCEPT
 {
+    if (viewportImageSize.x == 0 || viewportImageSize.y == 0) {
+        return viewportImageSize;
+    }
     const Vector2 viewportImageSizeF(viewportImageSize);
-    const nanoem_f32_t viewportLayoutBaseRatio = viewportImageSize.x >= viewportImageSize.y
-        ? viewportLayoutSize.x / viewportImageSizeF.x
-        : viewportLayoutSize.y / viewportImageSizeF.y;
-    return viewportImageSizeF * viewportLayoutBaseRatio;
+    const nanoem_f32_t widthRatio = nanoem_f32_t(viewportLayoutSize.x) / viewportImageSizeF.x,
+                       heightRatio = nanoem_f32_t(viewportLayoutSize.y) / viewportImageSizeF.y,
+                       viewportLayoutBaseRatio = glm::min(widthRatio, heightRatio);
+    return Vector2UI16(viewportImageSizeF * viewportLayoutBaseRatio);
 }
 
 void
