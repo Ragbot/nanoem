@@ -431,6 +431,15 @@ if(NOT NANOEM_MINIMAL)
   if(NANOEM_ENABLE_GLFW)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glfw)
   endif()
+  # include layering guard for emapp (scripts/check_emapp_include_layers.py);
+  # independent of the unit test suite so it is enforced in every build
+  enable_testing()
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME emapp_include_layers
+             COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/scripts/check_emapp_include_layers.py
+             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+  endif()
   if(NANOEM_ENABLE_TEST)
     include(${CMAKE_CURRENT_SOURCE_DIR}/dependencies/catch2/contrib/Catch.cmake)
     nanoem_build_test()
