@@ -256,8 +256,8 @@ MoveAllSelectedModelObjectsCommand::State::transform(const Matrix4x4 &delta)
             model::Vertex *vertex = model::Vertex::cast(vertexPtr);
             vertex->m_simd.m_origin = bx::simd_ld(glm::value_ptr(newOrigin));
         }
+        /* the upload is deferred to Project::update() which runs once per frame */
         m_activeModel->markStagingVertexBufferDirty();
-        m_activeModel->updateStagingVertexBuffer();
         break;
     }
     default:
@@ -305,8 +305,8 @@ MoveAllSelectedModelObjectsCommand::State::commit(const Matrix4x4 &delta)
             model::Vertex *vertex = model::Vertex::cast(vertexPtr);
             vertex->m_simd.m_origin = bx::simd_ld(glm::value_ptr(newOrigin));
         }
+        /* the upload is deferred to Project::update() which runs once per frame */
         m_activeModel->markStagingVertexBufferDirty();
-        m_activeModel->updateStagingVertexBuffer();
         break;
     }
     default:
@@ -350,8 +350,8 @@ MoveAllSelectedModelObjectsCommand::State::reset()
             model::Vertex *vertex = model::Vertex::cast(vertexPtr);
             vertex->m_simd.m_origin = bx::simd_ld(glm::value_ptr(it->m_origin));
         }
+        /* the upload is deferred to Project::update() which runs once per frame */
         m_activeModel->markStagingVertexBufferDirty();
-        m_activeModel->updateStagingVertexBuffer();
         break;
     }
     default:
