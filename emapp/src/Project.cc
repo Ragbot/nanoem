@@ -2676,8 +2676,7 @@ Project::update()
         for (ModelList::const_iterator it = m_allModelPtrs.begin(), end = m_allModelPtrs.end(); it != end; ++it) {
             Model *model = *it;
             model->synchronizeAllRigidBodiesTransformFeedbackFromSimulation(PhysicsEngine::kRigidBodyFollowBoneSkip);
-            model->resetAllVertices();
-            model->deformAllMorphs(false);
+            /* morph deformation is rebuilt by Model::updateStagingVertexBuffer before upload */
             model->markStagingVertexBufferDirty();
         }
     }

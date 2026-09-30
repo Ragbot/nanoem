@@ -214,6 +214,7 @@ public:
     bool isStagingVertexBufferDirty() const NANOEM_DECL_NOEXCEPT;
     void markStagingVertexBufferDirty();
     void updateStagingVertexBuffer();
+    const ByteArray &vertexBufferData() const NANOEM_DECL_NOEXCEPT;
     void resetLanguage();
     void registerUpdateActiveBoneTransformCommand(const Vector3 &translation, const Quaternion &orientation);
     void registerResetBoneSetTransformCommand(

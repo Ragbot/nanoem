@@ -1919,6 +1919,18 @@ void
 Model::updateStagingVertexBuffer()
 {
     if (EnumUtils::isEnabled(kPrivateStateDirtyStagingBuffer, m_states)) {
+        /*
+         * Consuming the staging vertex buffer bakes the accumulated vertex morph delta into the
+         * buffer and then resets it (see handlePerformSkinningVertexTransform). Any action that
+         * marks the buffer dirty (transforming bones or the model, seeking, stepping physics,
+         * etc.) without a preceding deform would therefore upload vertices whose morph delta was
+         * already consumed by the previous upload, making applied morphs visually disappear
+         * although their weights are still intact. Rebuild the deltas from the current morph
+         * weights right before they are consumed so that every upload reflects the full morph
+         * state regardless of what triggered it.
+         */
+        resetAllVertices();
+        deformAllMorphs(false);
         sg_buffer stagingVertexBuffer = m_vertexBuffers[m_stageVertexBufferIndex];
         if (sg::is_valid(stagingVertexBuffer)) {
             SG_PUSH_GROUPF("Model::updateStagingVertexBuffer(name=%s)", canonicalNameConstString());
@@ -1939,6 +1951,12 @@ Model::updateStagingVertexBuffer()
         }
         EnumUtils::setEnabled(kPrivateStateDirtyStagingBuffer | kPrivateStateDirtyMorph, m_states, false);
     }
+}
+
+const ByteArray &
+Model::vertexBufferData() const NANOEM_DECL_NOEXCEPT
+{
+    return m_vertexBufferData;
 }
 
 void
