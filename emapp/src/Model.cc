@@ -1793,12 +1793,14 @@ Model::performAllBonesTransform()
 {
     applyAllBonesTransform(PhysicsEngine::kSimulationTimingBefore);
     solveAllConstraints();
-    PhysicsEngine *engine = m_project->physicsEngine();
-    if (engine->simulationMode() == PhysicsEngine::kSimulationModeEnableAnytime) {
-        synchronizeAllRigidBodiesTransformFeedbackToSimulation();
-        engine->stepSimulation(m_project->physicsSimulationTimeStep());
-        synchronizeAllRigidBodiesTransformFeedbackFromSimulation(PhysicsEngine::kRigidBodyFollowBoneSkip);
-    }
+    /*
+     * The simulation is deliberately not stepped here even in EnableAnytime mode: this method
+     * runs per input event (mouse move while dragging bones or model objects) and once per UI
+     * frame (gizmo manipulation), so stepping here advanced simulated time by the input event
+     * rate and cost a full Bullet step (multiple milliseconds for physics-heavy models) per
+     * event, which stuttered dragging. Project::update() steps the simulation exactly once per
+     * frame in EnableAnytime mode, and seek/playback drives it in the other modes.
+     */
     applyAllBonesTransform(PhysicsEngine::kSimulationTimingAfter);
     markStagingVertexBufferDirty();
     if (m_camera->followingType() != ICamera::kFollowingTypeNone) {
