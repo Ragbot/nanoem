@@ -3664,14 +3664,24 @@ Model::deformMorph(const nanoem_model_morph_t *morphPtr, bool checkDirty)
             break;
         }
         case NANOEM_MODEL_MORPH_TYPE_VERTEX: {
-            nanoem_rsize_t numChildren;
-            const nanoem_model_morph_vertex_t *const *children =
-                nanoemModelMorphGetAllVertexMorphObjects(morphPtr, &numChildren);
-            for (nanoem_rsize_t i = 0; i < numChildren; i++) {
-                const nanoem_model_morph_vertex_t *child = children[i];
-                const nanoem_model_vertex_t *vertexPtr = nanoemModelMorphVertexGetVertexObject(child);
-                if (model::Vertex *vertex = model::Vertex::cast(vertexPtr)) {
-                    vertex->deform(child, weight);
+            /*
+             * Vertex morph children only add `offset * weight` into the delta buffer which is
+             * fully reset on every rebuild, so a zero weight contributes exactly nothing. Vertex
+             * morphs typically dominate a model's morph child count (tens of thousands of
+             * children), and since the delta is rebuilt before every upload this traversal would
+             * otherwise run in full on every frame even when no morph is active, which is
+             * measurably expensive for large models while dragging.
+             */
+            if (weight != 0) {
+                nanoem_rsize_t numChildren;
+                const nanoem_model_morph_vertex_t *const *children =
+                    nanoemModelMorphGetAllVertexMorphObjects(morphPtr, &numChildren);
+                for (nanoem_rsize_t i = 0; i < numChildren; i++) {
+                    const nanoem_model_morph_vertex_t *child = children[i];
+                    const nanoem_model_vertex_t *vertexPtr = nanoemModelMorphVertexGetVertexObject(child);
+                    if (model::Vertex *vertex = model::Vertex::cast(vertexPtr)) {
+                        vertex->deform(child, weight);
+                    }
                 }
             }
             break;
