@@ -192,6 +192,13 @@ function(nanoem_emapp_build_emapp suffix)
                              ${ZLIB_INCLUDE_DIR}
                              ${_include_directories})
   target_include_directories(${_emarb_name} PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/spdlog/include)
+  if(NANOEM_ENABLE_PCH)
+    # Forward.h (nanoem/bx/tinystl/glm closure), GLM and the logging shim are
+    # re-parsed by nearly every translation unit. Only third-party bootstrap
+    # headers live in the PCH on purpose: editing any emapp header must not
+    # invalidate it for the whole target.
+    target_precompile_headers(${_emapp_name} PRIVATE "<emapp/private/CommonInclude.h>")
+  endif()
   if(NANOEM_ENABLE_MIMALLOC)
     target_link_libraries(${_emapp_name} optimized ${MIMALLOC_LIBRARY_RELEASE} debug ${MIMALLOC_LIBRARY_DEBUG})
     target_include_directories(${_emapp_name} PRIVATE ${MIMALLOC_INCLUDE_DIR})
