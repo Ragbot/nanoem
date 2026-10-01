@@ -33,6 +33,9 @@ class QtViewPanel final : public QGroupBox {
 public:
     explicit QtViewPanel(QtApplicationService *service, QWidget *parent);
 
+    /* compressible: the dock row must fit every panel like the fixed width ImGui strip */
+    QSize minimumSizeHint() const override { return QSize(0, 0); }
+
 private:
     enum ViewDirectionType {
         kViewDirectionTypeFront = 0,

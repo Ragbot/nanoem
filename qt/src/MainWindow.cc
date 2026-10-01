@@ -5,10 +5,16 @@
  */
 
 #include "MainWindow.h"
+#include "QtAccessoryPanel.h"
 #include "QtApplicationClient.h"
 #include "QtApplicationMenuBuilder.h"
 #include "QtApplicationService.h"
+#include "QtBonePanel.h"
+#include "QtCameraPanel.h"
+#include "QtInterpolationPanel.h"
+#include "QtLightPanel.h"
 #include "QtModelPanel.h"
+#include "QtMorphPanel.h"
 #include "QtPlayPanel.h"
 #include "QtViewPanel.h"
 
@@ -239,7 +245,18 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
     }
     m_timer = new QTimer(this);
     m_timer->setInterval(16);
-    QObject::connect(m_timer, &QTimer::timeout, this, [this]() { m_viewport->update(); });
+    QObject::connect(m_timer, &QTimer::timeout, this, [this]() {
+        /* dispatch on the timer so command/event processing never depends on paint scheduling
+           (the offscreen platform delivers no repeated paint events, and queued commands must
+           still run; the GL context is made current because loads upload GPU resources) */
+        if (m_viewport->isValid()) {
+            m_viewport->makeCurrent();
+            m_service->consumeDispatchAllCommandMessages();
+            m_client->consumeDispatchAllEventMessages();
+            m_viewport->doneCurrent();
+        }
+        m_viewport->update();
+    });
     m_timer->start();
     m_client->addDisableCursorEventListener(
         [](void *userData, const Vector2SI32 &logicalScaleCursorPosition) {
@@ -315,9 +332,12 @@ void
 MainWindow::setupBottomPanels()
 {
     /* Panels ported to native Qt widgets are masked out of ImGuiWindow::drawMainWindow so ImGui stops
-       drawing them; the remaining ImGui panels keep their strip at the bottom of the central viewport
-       widget while the native ones live in a dock below it (outside the GL widget). */
-    m_service->setNativePanelMask(internal::IUIWindow::kNativePanelTypeModel |
+       drawing them; the remaining ImGui panels (the timeline column) keep their place while the
+       native ones live in a dock below the central viewport widget (outside the GL widget). */
+    m_service->setNativePanelMask(internal::IUIWindow::kNativePanelTypeInterpolation |
+        internal::IUIWindow::kNativePanelTypeModel | internal::IUIWindow::kNativePanelTypeBone |
+        internal::IUIWindow::kNativePanelTypeCamera | internal::IUIWindow::kNativePanelTypeMorph |
+        internal::IUIWindow::kNativePanelTypeLight | internal::IUIWindow::kNativePanelTypeAccessory |
         internal::IUIWindow::kNativePanelTypeView | internal::IUIWindow::kNativePanelTypePlay);
     auto *dock = new QDockWidget(tr("Panels"), this);
     dock->setObjectName(QStringLiteral("bottomPanelDock"));
@@ -326,9 +346,25 @@ MainWindow::setupBottomPanels()
     auto *layout = new QHBoxLayout(container);
     layout->setContentsMargins(4, 4, 4, 4);
     layout->setSpacing(8);
-    layout->addWidget(new QtModelPanel(m_service, m_client, container));
-    layout->addWidget(new QtViewPanel(m_service, container));
-    layout->addWidget(new QtPlayPanel(m_service, container));
+    QWidget *panels[] = { new QtInterpolationPanel(m_service, container),
+        new QtModelPanel(m_service, m_client, container), new QtBonePanel(m_service, container),
+        new QtCameraPanel(m_service, container), new QtMorphPanel(m_service, container),
+        new QtLightPanel(m_service, container), new QtAccessoryPanel(m_service, container),
+        new QtViewPanel(m_service, container), new QtPlayPanel(m_service, container) };
+    for (QWidget *panel : panels) {
+        /* the groups compress to fit the window width like the fixed width ImGui panel children;
+           the mutually exclusive ones (bone/camera, morph/light, accessory) hide themselves */
+        panel->setMinimumSize(0, 0);
+        panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        layout->addWidget(panel);
+    }
+    /* the dock must stay tall enough for the tallest panel (the play segment editors) regardless
+       of how the window height is split between the viewport and the dock */
+    int contentHeight = 0;
+    for (QWidget *panel : panels) {
+        contentHeight = qMax(contentHeight, panel->sizeHint().height());
+    }
+    container->setMinimumHeight(contentHeight + layout->contentsMargins().top() + layout->contentsMargins().bottom());
     layout->addStretch(1);
     dock->setWidget(container);
     /* hide the dock title bar: the panels are always visible and the dock must not be closable */

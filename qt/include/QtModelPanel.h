@@ -42,6 +42,9 @@ class QtModelPanel final : public QGroupBox {
 public:
     QtModelPanel(QtApplicationService *service, QtApplicationClient *client, QWidget *parent);
 
+    /* compressible: the dock row must fit every panel like the fixed width ImGui strip */
+    QSize minimumSizeHint() const override { return QSize(0, 0); }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 

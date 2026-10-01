@@ -36,6 +36,9 @@ class QtPlayPanel final : public QGroupBox {
 public:
     explicit QtPlayPanel(QtApplicationService *service, QWidget *parent);
 
+    /* compressible: the dock row must fit every panel like the fixed width ImGui strip */
+    QSize minimumSizeHint() const override { return QSize(0, 0); }
+
 private:
     Project *currentProject();
     void refresh();
