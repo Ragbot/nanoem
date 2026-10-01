@@ -306,6 +306,22 @@ public:
      * @brief Opens the ImGui model outside parent form dialog through the UI window backend.
      */
     void openModelOutsideParentDialog(Project *project);
+    /**
+     * @brief Opens the ImGui accessory outside parent form dialog through the UI window backend.
+     */
+    void openAccessoryOutsideParentDialog(Project *project);
+    /**
+     * @brief Opens the ImGui bone keyframe bezier interpolation curve graph dialog through the UI window backend.
+     */
+    void openBoneKeyframeBezierInterpolationCurveGraphDialog(Project *project);
+    /**
+     * @brief Opens the ImGui camera keyframe bezier interpolation curve graph dialog through the UI window backend.
+     */
+    void openCameraKeyframeBezierInterpolationCurveGraphDialog(Project *project);
+    /**
+     * @brief Opens the ImGui self shadow configuration dialog through the UI window backend.
+     */
+    void openSelfShadowConfigurationDialog();
 
 protected:
     virtual void sendEventMessage(const Nanoem__Application__Event *event) = 0;

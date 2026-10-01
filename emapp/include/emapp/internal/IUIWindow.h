@@ -56,6 +56,30 @@ public:
     virtual void openModelOutsideParentDialog(Project *)
     {
     }
+    /**
+     * @brief Opens the (ImGui rendered) accessory outside parent form dialog.
+     */
+    virtual void openAccessoryOutsideParentDialog(Project *)
+    {
+    }
+    /**
+     * @brief Opens the (ImGui rendered) bone keyframe bezier interpolation curve graph dialog.
+     */
+    virtual void openBoneKeyframeBezierInterpolationCurveGraphDialog(Project *)
+    {
+    }
+    /**
+     * @brief Opens the (ImGui rendered) camera keyframe bezier interpolation curve graph dialog.
+     */
+    virtual void openCameraKeyframeBezierInterpolationCurveGraphDialog(Project *)
+    {
+    }
+    /**
+     * @brief Opens the (ImGui rendered) self shadow configuration dialog.
+     */
+    virtual void openSelfShadowConfigurationDialog()
+    {
+    }
     virtual void initialize(nanoem_f32_t windowDevicePixelRatio, nanoem_f32_t viewportDevicePixelRatio) = 0;
     virtual void reset(Project *project) = 0;
     virtual void destroy() NANOEM_DECL_NOEXCEPT = 0;

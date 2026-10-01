@@ -5285,6 +5285,38 @@ BaseApplicationService::openModelOutsideParentDialog(Project *project)
     }
 }
 
+void
+BaseApplicationService::openAccessoryOutsideParentDialog(Project *project)
+{
+    if (m_window) {
+        m_window->openAccessoryOutsideParentDialog(project);
+    }
+}
+
+void
+BaseApplicationService::openBoneKeyframeBezierInterpolationCurveGraphDialog(Project *project)
+{
+    if (m_window) {
+        m_window->openBoneKeyframeBezierInterpolationCurveGraphDialog(project);
+    }
+}
+
+void
+BaseApplicationService::openCameraKeyframeBezierInterpolationCurveGraphDialog(Project *project)
+{
+    if (m_window) {
+        m_window->openCameraKeyframeBezierInterpolationCurveGraphDialog(project);
+    }
+}
+
+void
+BaseApplicationService::openSelfShadowConfigurationDialog()
+{
+    if (m_window) {
+        m_window->openSelfShadowConfigurationDialog();
+    }
+}
+
 IModalDialog *
 BaseApplicationService::handleSaveOnNewProject(void *userData, Project * /* project */)
 {

@@ -172,11 +172,11 @@ public:
     void reloadActiveEffect(IDrawable *value);
     void addLazyExecutionCommand(ILazyExecutionCommand *command);
     void drawTextTooltip(const char *text);
-    void openBoneKeyframeBezierInterpolationCurveGraphDialog(Project *project);
-    void openCameraKeyframeBezierInterpolationCurveGraphDialog(Project *project);
+    void openBoneKeyframeBezierInterpolationCurveGraphDialog(Project *project) NANOEM_DECL_OVERRIDE;
+    void openCameraKeyframeBezierInterpolationCurveGraphDialog(Project *project) NANOEM_DECL_OVERRIDE;
     void openModelOutsideParentDialog(Project *project) NANOEM_DECL_OVERRIDE;
-    void openAccessoryOutsideParentDialog(Project *project);
-    void openSelfShadowConfigurationDialog();
+    void openAccessoryOutsideParentDialog(Project *project) NANOEM_DECL_OVERRIDE;
+    void openSelfShadowConfigurationDialog() NANOEM_DECL_OVERRIDE;
     void openUVEditDialog(const nanoem_model_material_t *materialPtr, Model *activeModel);
 
     void initialize(nanoem_f32_t windowDevicePixelRatio, nanoem_f32_t viewportDevicePixelRatio) NANOEM_DECL_OVERRIDE;
