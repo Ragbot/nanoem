@@ -174,7 +174,7 @@ public:
     void drawTextTooltip(const char *text);
     void openBoneKeyframeBezierInterpolationCurveGraphDialog(Project *project);
     void openCameraKeyframeBezierInterpolationCurveGraphDialog(Project *project);
-    void openModelOutsideParentDialog(Project *project);
+    void openModelOutsideParentDialog(Project *project) NANOEM_DECL_OVERRIDE;
     void openAccessoryOutsideParentDialog(Project *project);
     void openSelfShadowConfigurationDialog();
     void openUVEditDialog(const nanoem_model_material_t *materialPtr, Model *activeModel);

@@ -302,6 +302,10 @@ public:
      *        region expands into the freed space.
      */
     void setNativePanelMask(nanoem_u32_t value);
+    /**
+     * @brief Opens the ImGui model outside parent form dialog through the UI window backend.
+     */
+    void openModelOutsideParentDialog(Project *project);
 
 protected:
     virtual void sendEventMessage(const Nanoem__Application__Event *event) = 0;

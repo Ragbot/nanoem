@@ -47,6 +47,15 @@ public:
     }
 
     virtual void setNativePanelMask(nanoem_u32_t value) = 0;
+    /**
+     * @brief Opens the (ImGui rendered) model outside parent form dialog.
+     *
+     *        Complex form dialogs stay on the ImGui path until they are ported; shells without an ImGui
+     *        window get the default no-op.
+     */
+    virtual void openModelOutsideParentDialog(Project *)
+    {
+    }
     virtual void initialize(nanoem_f32_t windowDevicePixelRatio, nanoem_f32_t viewportDevicePixelRatio) = 0;
     virtual void reset(Project *project) = 0;
     virtual void destroy() NANOEM_DECL_NOEXCEPT = 0;

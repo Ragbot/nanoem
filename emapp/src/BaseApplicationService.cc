@@ -5277,6 +5277,14 @@ BaseApplicationService::setNativePanelMask(nanoem_u32_t value)
     }
 }
 
+void
+BaseApplicationService::openModelOutsideParentDialog(Project *project)
+{
+    if (m_window) {
+        m_window->openModelOutsideParentDialog(project);
+    }
+}
+
 IModalDialog *
 BaseApplicationService::handleSaveOnNewProject(void *userData, Project * /* project */)
 {
