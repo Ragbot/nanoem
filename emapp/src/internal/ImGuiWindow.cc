@@ -1338,6 +1338,7 @@ ImGuiWindow::ImGuiWindow(BaseApplicationService *application)
     , m_modalDialogPressedButton(0)
     , m_projectKeyframeSelectorIndex(0)
     , m_modelKeyframeSelectorIndex(0)
+    , m_nativePanelMask(0)
     , m_requestClearAllModalDialogs(false)
     , m_draggingTimelineScrollBar(false)
     , m_lastKeyframeSelection(false)
@@ -2162,6 +2163,12 @@ ImGuiWindow::swapModalDialog(IModalDialog *value)
     }
 }
 
+void
+ImGuiWindow::setNativePanelMask(nanoem_u32_t value)
+{
+    m_nativePanelMask = value;
+}
+
 bool
 ImGuiWindow::isVisible() const NANOEM_DECL_NOEXCEPT
 {
@@ -2950,12 +2957,20 @@ ImGuiWindow::drawMainWindow(
             (ImGui::GetFrameHeightWithSpacing() * 8 + style.ItemSpacing.y * 6 + style.WindowPadding.y * 2) *
             (1.0f / deviceScaleRatio);
         bool viewportWindowDetached = project->isViewportWindowDetached();
+        const nanoem_u32_t bottomPanelTypes = kNativePanelTypeInterpolation | kNativePanelTypeModel |
+            kNativePanelTypeBone | kNativePanelTypeCamera | kNativePanelTypeMorph | kNativePanelTypeLight |
+            kNativePanelTypeAccessory | kNativePanelTypeView | kNativePanelTypePlay;
+        const bool drawBottomPanelRow = (m_nativePanelMask & bottomPanelTypes) != bottomPanelTypes;
+        const bool drawTimelinePanel = (m_nativePanelMask & kNativePanelTypeTimeline) == 0;
+        const nanoem_f32_t panelStripHeight = drawBottomPanelRow ? panelHeight * deviceScaleRatio : 0;
         if (viewportWindowDetached) {
             const ImVec2 minimumViewportSize(
                 kMinimumViewportWindowSize.x * deviceScaleRatio, kMinimumViewportWindowSize.y * deviceScaleRatio);
-            const nanoem_f32_t timelineWidth = size.x, viewportHeight = size.y - (panelHeight * deviceScaleRatio);
+            const nanoem_f32_t timelineWidth = size.x, viewportHeight = size.y - panelStripHeight;
             m_defaultTimelineWidth = size.x;
-            drawTimeline(timelineWidth, viewportHeight, project);
+            if (drawTimelinePanel) {
+                drawTimeline(timelineWidth, viewportHeight, project);
+            }
             ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kWindowRounding * deviceScaleRatio);
             ImGui::SetNextWindowSizeConstraints(minimumViewportSize, ImVec2(FLT_MAX, FLT_MAX));
             if (ImGui::Begin(tr("nanoem.gui.viewport.title"), &viewportWindowDetached)) {
@@ -2970,41 +2985,62 @@ ImGuiWindow::drawMainWindow(
         }
         else {
             const nanoem_f32_t timelineWidth = calculateTimelineWidth(size),
-                               viewportHeight = size.y - (panelHeight * deviceScaleRatio);
-            drawTimeline(timelineWidth, viewportHeight, project);
-            ImGui::SameLine();
+                               viewportHeight = size.y - panelStripHeight;
+            if (drawTimelinePanel) {
+                drawTimeline(timelineWidth, viewportHeight, project);
+                ImGui::SameLine();
+            }
             const ImVec2 viewportFrom(ImGui::GetCursorScreenPos());
             ImGui::BeginChild("viewport", ImVec2(ImGui::GetContentRegionAvail().x, viewportHeight), false);
             drawViewport(project, state, flags);
             ImGui::EndChild();
-            if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) {
+            if (drawTimelinePanel && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) {
                 handleVerticalSplitter(viewportFrom, size, viewportHeight, deviceScaleRatio);
             }
         }
-        Model *activeModel = project->activeModel();
-        ImGui::BeginChild("panel", ImGui::GetContentRegionAvail(), true);
-        const ImVec2 &innerSize = ImGui::GetContentRegionAvail();
-        float width = 144.0f * deviceScaleRatio, // (innerSize.x - (style.ItemSpacing.x + style.FramePadding.x +
-                                                 // style.WindowPadding.x) * 2) / 7,
-            height = innerSize.y;
-        const ImVec2 panelSize(width, height);
-        activeModel ? drawBoneInterpolationPanel(panelSize, activeModel, project)
-                    : drawCameraInterpolationPanel(panelSize, project);
-        ImGui::SameLine();
-        drawModelPanel(panelSize, project);
-        ImGui::SameLine();
-        activeModel ? drawBonePanel(panelSize, activeModel, project) : drawCameraPanel(panelSize, project);
-        ImGui::SameLine();
-        activeModel ? drawMorphPanel(panelSize, activeModel, project) : drawLightPanel(panelSize, project);
-        ImGui::SameLine();
-        if (!activeModel) {
-            drawAccessoryPanel(panelSize, project);
+        if (drawBottomPanelRow) {
+            Model *activeModel = project->activeModel();
+            ImGui::BeginChild("panel", ImGui::GetContentRegionAvail(), true);
+            const ImVec2 &innerSize = ImGui::GetContentRegionAvail();
+            float width = 144.0f * deviceScaleRatio, // (innerSize.x - (style.ItemSpacing.x + style.FramePadding.x +
+                                                     // style.WindowPadding.x) * 2) / 7,
+                height = innerSize.y;
+            const ImVec2 panelSize(width, height);
+            bool anyPanelDrawn = false;
+            const auto tryDrawPanel = [this, &anyPanelDrawn](nanoem_u32_t mask) {
+                const bool draw = (m_nativePanelMask & mask) == 0;
+                if (draw) {
+                    if (anyPanelDrawn) {
+                        ImGui::SameLine();
+                    }
+                    anyPanelDrawn = true;
+                }
+                return draw;
+            };
+            if (tryDrawPanel(kNativePanelTypeInterpolation)) {
+                activeModel ? drawBoneInterpolationPanel(panelSize, activeModel, project)
+                            : drawCameraInterpolationPanel(panelSize, project);
+            }
+            if (tryDrawPanel(kNativePanelTypeModel)) {
+                drawModelPanel(panelSize, project);
+            }
+            if (tryDrawPanel(activeModel ? kNativePanelTypeBone : kNativePanelTypeCamera)) {
+                activeModel ? drawBonePanel(panelSize, activeModel, project) : drawCameraPanel(panelSize, project);
+            }
+            if (tryDrawPanel(activeModel ? kNativePanelTypeMorph : kNativePanelTypeLight)) {
+                activeModel ? drawMorphPanel(panelSize, activeModel, project) : drawLightPanel(panelSize, project);
+            }
+            if (!activeModel && tryDrawPanel(kNativePanelTypeAccessory)) {
+                drawAccessoryPanel(panelSize, project);
+            }
+            if (tryDrawPanel(kNativePanelTypeView)) {
+                drawViewPanel(panelSize, project);
+            }
+            if (tryDrawPanel(kNativePanelTypePlay)) {
+                drawPlayPanel(panelSize, project);
+            }
+            ImGui::EndChild();
         }
-        ImGui::SameLine();
-        drawViewPanel(panelSize, project);
-        ImGui::SameLine();
-        drawPlayPanel(panelSize, project);
-        ImGui::EndChild();
     }
     else {
         nanoem_f32_t height = ImGui::GetContentRegionAvail().y;

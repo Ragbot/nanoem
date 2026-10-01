@@ -27,10 +27,26 @@ namespace internal {
 
 class IUIWindow {
 public:
+    enum NativePanelType {
+        kNativePanelTypeFirstEnum = 1,
+        kNativePanelTypeTimeline = kNativePanelTypeFirstEnum,
+        kNativePanelTypeInterpolation = 1 << 1,
+        kNativePanelTypeModel = 1 << 2,
+        kNativePanelTypeBone = 1 << 3,
+        kNativePanelTypeCamera = 1 << 4,
+        kNativePanelTypeMorph = 1 << 5,
+        kNativePanelTypeLight = 1 << 6,
+        kNativePanelTypeAccessory = 1 << 7,
+        kNativePanelTypeView = 1 << 8,
+        kNativePanelTypePlay = 1 << 9,
+        kNativePanelTypeMaxEnum = 1 << 10,
+    };
+
     virtual ~IUIWindow() NANOEM_DECL_NOEXCEPT
     {
     }
 
+    virtual void setNativePanelMask(nanoem_u32_t value) = 0;
     virtual void initialize(nanoem_f32_t windowDevicePixelRatio, nanoem_f32_t viewportDevicePixelRatio) = 0;
     virtual void reset(Project *project) = 0;
     virtual void destroy() NANOEM_DECL_NOEXCEPT = 0;

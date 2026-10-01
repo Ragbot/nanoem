@@ -293,6 +293,15 @@ public:
     void setDefaultAuxFlags(nanoem_u32_t value);
     bool isUIVisible() const NANOEM_DECL_NOEXCEPT;
     void setUIVisible(bool value);
+    /**
+     * @brief Replaces the ImGui side panels listed in `value` (bitwise OR of internal::IUIWindow::NativePanelType)
+     *        with natively rendered widgets provided by the host shell.
+     *
+     *        The default mask is 0 which keeps all panels rendered by ImGui. Shells that port panels to native
+     *        widgets (e.g. the Qt shell) set the corresponding bits so ImGui skips drawing them and the viewport
+     *        region expands into the freed space.
+     */
+    void setNativePanelMask(nanoem_u32_t value);
 
 protected:
     virtual void sendEventMessage(const Nanoem__Application__Event *event) = 0;
@@ -437,6 +446,7 @@ private:
     JSON_Value *m_applicationPendingChangeConfiguration;
     internal::CapturingPassState *m_capturingPassState;
     internal::IUIWindow *m_window;
+    nanoem_u32_t m_nativePanelMask;
     Confirmer m_confirmer;
     HandledSGXMessageSet m_handledSGXMessages;
     SharedCancelPublisherRepository m_sharedCancelPublisherRepository;

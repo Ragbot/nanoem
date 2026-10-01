@@ -1374,6 +1374,7 @@ BaseApplicationService::BaseApplicationService(const JSON_Value *root)
     , m_applicationPendingChangeConfiguration(nullptr)
     , m_capturingPassState(nullptr)
     , m_window(nullptr)
+    , m_nativePanelMask(0)
     , m_confirmer(this)
     , m_sharedCancelPublisherRepository(this)
     , m_sharedDebugCaptureRepository(this)
@@ -1405,6 +1406,8 @@ void
 BaseApplicationService::initialize(nanoem_f32_t windowDevicePixelRatio, nanoem_f32_t viewportDevicePixelRatio)
 {
     m_window = nanoem_new(internal::ImGuiWindow(this));
+    /* shells may set the mask before the window exists (e.g. MainWindow::initialize) */
+    m_window->setNativePanelMask(m_nativePanelMask);
     m_window->initialize(windowDevicePixelRatio, viewportDevicePixelRatio);
     EMLOG_INFO("Initialized an application service: instance={}", static_cast<const void *>(this));
 }
@@ -5263,6 +5266,15 @@ void
 BaseApplicationService::setUIVisible(bool value)
 {
     m_window->setVisible(value);
+}
+
+void
+BaseApplicationService::setNativePanelMask(nanoem_u32_t value)
+{
+    m_nativePanelMask = value;
+    if (m_window) {
+        m_window->setNativePanelMask(value);
+    }
 }
 
 IModalDialog *

@@ -227,6 +227,7 @@ public:
     void clearAllModalDialogs() NANOEM_DECL_OVERRIDE;
     bool hasModalDialog() const NANOEM_DECL_NOEXCEPT_OVERRIDE;
     void swapModalDialog(IModalDialog *value) NANOEM_DECL_OVERRIDE;
+    void setNativePanelMask(nanoem_u32_t value) NANOEM_DECL_OVERRIDE;
     bool isVisible() const NANOEM_DECL_NOEXCEPT_OVERRIDE;
     void setVisible(bool value) NANOEM_DECL_OVERRIDE;
     IPrimitive2D *primitiveContext() NANOEM_DECL_NOEXCEPT_OVERRIDE;
@@ -465,6 +466,7 @@ private:
     int m_modalDialogPressedButton;
     int m_projectKeyframeSelectorIndex;
     int m_modelKeyframeSelectorIndex;
+    nanoem_u32_t m_nativePanelMask;
     bool m_requestClearAllModalDialogs;
     bool m_draggingTimelineScrollBar;
     bool m_lastKeyframeSelection;
