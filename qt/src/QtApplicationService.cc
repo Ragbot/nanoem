@@ -6,7 +6,10 @@
 
 #include "QtApplicationService.h"
 
+#include "QtModalDialogPresenter.h"
+
 #include "emapp/EnumUtils.h"
+#include "emapp/IModalDialog.h"
 #include "emapp/IProjectHolder.h"
 #include "emapp/Project.h"
 #include "emapp/StringUtils.h"
@@ -170,11 +173,13 @@ QtApplicationService::convertKeyType(Qt::Key value)
 QtApplicationService::QtApplicationService(const JSON_Value *config, QtApplicationClient::Bridge *bridge)
     : BaseApplicationService(config)
     , m_bridge(bridge)
+    , m_presenter(new QtModalDialogPresenter(this))
 {
 }
 
 QtApplicationService::~QtApplicationService()
 {
+    delete m_presenter;
 }
 
 void
@@ -199,6 +204,50 @@ void
 QtApplicationService::setFrameBufferResolver(std::function<nanoem_u32_t()> value)
 {
     m_frameBufferResolver = std::move(value);
+}
+
+void
+QtApplicationService::setModalDialogParentWidget(QWidget *value)
+{
+    m_presenter->setParentWidget(value);
+}
+
+const IModalDialog *
+QtApplicationService::currentModalDialog() const NANOEM_DECL_NOEXCEPT
+{
+    const IModalDialog *dialog = m_presenter->current();
+    return dialog ? dialog : BaseApplicationService::currentModalDialog();
+}
+
+IModalDialog *
+QtApplicationService::currentModalDialog() NANOEM_DECL_NOEXCEPT
+{
+    IModalDialog *dialog = m_presenter->current();
+    return dialog ? dialog : BaseApplicationService::currentModalDialog();
+}
+
+void
+QtApplicationService::addModalDialog(IModalDialog *value)
+{
+    if (value && value->isNativelyRendered()) {
+        m_presenter->add(value);
+    }
+    else {
+        BaseApplicationService::addModalDialog(value);
+    }
+}
+
+void
+QtApplicationService::clearAllModalDialog()
+{
+    m_presenter->clearAll();
+    BaseApplicationService::clearAllModalDialog();
+}
+
+bool
+QtApplicationService::hasModalDialog() const NANOEM_DECL_NOEXCEPT
+{
+    return m_presenter->has() || BaseApplicationService::hasModalDialog();
 }
 
 void

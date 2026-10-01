@@ -28,6 +28,11 @@ class NoActionDialog : public IModalDialog {
 protected:
     NoActionDialog(BaseApplicationService *applicationPtr);
 
+    bool isNativelyRendered() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return true;
+    }
+
     Vector4 desiredWindowSize(
         const Vector2UI16 &devicePixelWindowSize, nanoem_f32_t devicePxielRatio) const NANOEM_DECL_NOEXCEPT_OVERRIDE;
     IModalDialog *onAccepted(Project *project) NANOEM_DECL_OVERRIDE;
@@ -132,6 +137,11 @@ NoActionDialog::setText(const char *value)
 
 class LoadingModelConfirmDialog NANOEM_DECL_SEALED : public NoActionDialog {
 public:
+    const char *text() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_text.size() > 0 ? m_text.data() : "";
+    }
+
     LoadingModelConfirmDialog(
         BaseApplicationService *applicationPtr, Model *model, ModalDialogFactory::AddingModelDialogCallback callback);
     ~LoadingModelConfirmDialog() NANOEM_DECL_NOEXCEPT_OVERRIDE;
@@ -235,6 +245,11 @@ LoadingModelConfirmDialog::onAccepted(Project *project)
 
 class EnablingEffectPluginConfirmDialog NANOEM_DECL_SEALED : public NoActionDialog {
 public:
+    const char *text() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_message.c_str();
+    }
+
     EnablingEffectPluginConfirmDialog(BaseApplicationService *applicationPtr, const URI &fileURI, nanoem_u16_t handle,
         int type, ModalDialogFactory::EnablingEffectPluginDialogCallback callback);
     ~EnablingEffectPluginConfirmDialog() NANOEM_DECL_NOEXCEPT_OVERRIDE;
@@ -305,6 +320,11 @@ EnablingEffectPluginConfirmDialog::onAccepted(Project *project)
 
 class LoadingArchivedModelConfirmDialog NANOEM_DECL_SEALED : public NoActionDialog {
 public:
+    const char *text() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_message.c_str();
+    }
+
     LoadingArchivedModelConfirmDialog(BaseApplicationService *applicationPtr, Model *model,
         const ModalDialogFactory::DestroyReaderCallback &callback);
     ~LoadingArchivedModelConfirmDialog() NANOEM_DECL_NOEXCEPT_OVERRIDE;
@@ -394,6 +414,11 @@ LoadingArchivedModelConfirmDialog::onAccepted(Project *project)
 
 class DisplayPlainTextDialog NANOEM_DECL_SEALED : public NoActionDialog {
 public:
+    const char *text() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_text.size() > 0 ? m_text.data() : "";
+    }
+
     DisplayPlainTextDialog(BaseApplicationService *applicationPtr, const String &title, const String &message);
     ~DisplayPlainTextDialog() NANOEM_DECL_NOEXCEPT_OVERRIDE;
 
@@ -441,6 +466,11 @@ DisplayPlainTextDialog::buttons() const NANOEM_DECL_NOEXCEPT
 
 class StandardConfirmDialog NANOEM_DECL_SEALED : public NoActionDialog {
 public:
+    const char *text() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_message.c_str();
+    }
+
     StandardConfirmDialog(BaseApplicationService *applicationPtr, const String &title, const String &message,
         const ModalDialogFactory::StandardConfirmDialogCallbackPair &callbacks, void *userData);
     ~StandardConfirmDialog() NANOEM_DECL_NOEXCEPT_OVERRIDE;
@@ -516,6 +546,11 @@ StandardConfirmDialog::onCancelled(Project *project)
 
 class ConfirmSavingDialog NANOEM_DECL_SEALED : public NoActionDialog {
 public:
+    const char *text() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_message.c_str();
+    }
+
     ConfirmSavingDialog(BaseApplicationService *applicationPtr, const String &title, const String &message,
         const ModalDialogFactory::SaveConfirmDialog &callbacks, void *userData);
     ~ConfirmSavingDialog() NANOEM_DECL_NOEXCEPT_OVERRIDE;
@@ -722,6 +757,15 @@ DeletingModelConfirmDialogUserData::onCancelled(void *userData, Project *project
 
 class ProgressDialog NANOEM_DECL_SEALED : public NoActionDialog {
 public:
+    const char *text() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_message.c_str();
+    }
+    nanoem_f32_t progress() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_value;
+    }
+
     ProgressDialog(BaseApplicationService *applicationPtr, const String &title, const String &message,
         const ModalDialogFactory::standard_confirm_dialog_t &callback, void *userData);
     ~ProgressDialog() NANOEM_DECL_NOEXCEPT_OVERRIDE;
@@ -816,6 +860,11 @@ ProgressDialog::setText(const char *value)
 
 class AboutDialog NANOEM_DECL_SEALED : public NoActionDialog {
 public:
+    const char *text() const NANOEM_DECL_NOEXCEPT NANOEM_DECL_OVERRIDE
+    {
+        return m_text.size() > 0 ? m_text.data() : "";
+    }
+
     AboutDialog(BaseApplicationService *applicationPtr);
     ~AboutDialog() NANOEM_DECL_NOEXCEPT_OVERRIDE;
 

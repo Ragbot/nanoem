@@ -16,8 +16,12 @@
 
 #include <QtCore/qnamespace.h>
 
+class QWidget;
+
 namespace nanoem {
 namespace qt {
+
+class QtModalDialogPresenter;
 
 class QtApplicationService final : public BaseApplicationService {
 public:
@@ -31,6 +35,7 @@ public:
     void draw();
     void consumeDispatchAllCommandMessages();
     void setFrameBufferResolver(std::function<nanoem_u32_t()> value);
+    void setModalDialogParentWidget(QWidget *value);
 
 private:
     void sendEventMessage(const Nanoem__Application__Event *event) override;
@@ -39,8 +44,14 @@ private:
         nanoem_u32_t windowID, const sg_pass_action &pa, int width, int height, int &sampleCount) override;
     void endDefaultPass() override;
     void rebindFrameBuffer();
+    const IModalDialog *currentModalDialog() const NANOEM_DECL_NOEXCEPT override;
+    IModalDialog *currentModalDialog() NANOEM_DECL_NOEXCEPT override;
+    void addModalDialog(IModalDialog *value) override;
+    void clearAllModalDialog() override;
+    bool hasModalDialog() const NANOEM_DECL_NOEXCEPT override;
 
     QtApplicationClient::Bridge *m_bridge;
+    QtModalDialogPresenter *m_presenter;
     std::function<nanoem_u32_t()> m_frameBufferResolver;
 };
 

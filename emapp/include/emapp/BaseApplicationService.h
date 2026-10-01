@@ -251,11 +251,11 @@ public:
     void sendLoadingAllMotionIOPluginsEventMessage(int language);
 
     IPrimitive2D *primitiveContext() NANOEM_DECL_NOEXCEPT;
-    const IModalDialog *currentModalDialog() const NANOEM_DECL_NOEXCEPT;
-    IModalDialog *currentModalDialog() NANOEM_DECL_NOEXCEPT;
-    void addModalDialog(IModalDialog *value);
-    void clearAllModalDialog();
-    bool hasModalDialog() const NANOEM_DECL_NOEXCEPT;
+    virtual const IModalDialog *currentModalDialog() const NANOEM_DECL_NOEXCEPT;
+    virtual IModalDialog *currentModalDialog() NANOEM_DECL_NOEXCEPT;
+    virtual void addModalDialog(IModalDialog *value);
+    virtual void clearAllModalDialog();
+    virtual bool hasModalDialog() const NANOEM_DECL_NOEXCEPT;
 
     virtual sg_pixel_format defaultPassPixelFormat() const NANOEM_DECL_NOEXCEPT;
     virtual void beginDefaultPass(

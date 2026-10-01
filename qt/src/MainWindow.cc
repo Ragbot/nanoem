@@ -264,6 +264,7 @@ MainWindow::~MainWindow()
 bool
 MainWindow::initialize()
 {
+    m_service->setModalDialogParentWidget(this);
     const JSON_Object *config = json_object(m_service->applicationConfiguration());
     const char *pluginDirPath = json_object_dotget_string(config, "qt.plugin.path");
     if (!pluginDirPath) {

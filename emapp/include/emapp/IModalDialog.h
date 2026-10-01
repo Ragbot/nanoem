@@ -28,6 +28,20 @@ public:
     {
     }
     virtual const char *title() const NANOEM_DECL_NOEXCEPT = 0;
+    virtual const char *text() const NANOEM_DECL_NOEXCEPT
+    {
+        return "";
+    }
+    virtual nanoem_f32_t progress() const NANOEM_DECL_NOEXCEPT
+    {
+        return -1.0f;
+    }
+    /* true if the platform backend (e.g. the Qt shell) renders this dialog with native widgets
+       instead of the ImGui modal window */
+    virtual bool isNativelyRendered() const NANOEM_DECL_NOEXCEPT
+    {
+        return false;
+    }
     virtual void draw(const Project *project) = 0;
     virtual Vector4 desiredWindowSize(
         const Vector2UI16 &devicePixelWindowSize, nanoem_f32_t devicePxielRatio) const NANOEM_DECL_NOEXCEPT = 0;
