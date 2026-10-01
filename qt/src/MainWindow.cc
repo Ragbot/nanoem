@@ -23,6 +23,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QLayout>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMimeData>
@@ -217,6 +218,16 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
     const Vector2SI32 minimumWindowSize(BaseApplicationService::minimumRequiredWindowSize());
     resize(minimumWindowSize.x, minimumWindowSize.y);
     setupMenus();
+    /* The project enforces a 1080x700 minimum display size (ImGuiWindow::kMinimumMainWindowSize) while the
+       native menu bar steals height from the central widget. Without compensating for it the widget's
+       framebuffer is shorter than the project window and the top rows (including the ImGui main menu bar)
+       are rendered outside the framebuffer and clipped. Grow the window by the menu bar height and forbid
+       shrinking below that size so the framebuffer always covers the full project size. */
+    layout()->activate();
+    if (const int menuBarHeight = menuBar()->height()) {
+        resize(width(), height() + menuBarHeight);
+        setMinimumSize(width(), height());
+    }
     m_timer = new QTimer(this);
     m_timer->setInterval(16);
     QObject::connect(m_timer, &QTimer::timeout, this, [this]() { m_viewport->update(); });
