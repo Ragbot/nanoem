@@ -1,0 +1,430 @@
+/*
+   Copyright (c) 2015-2023 hkrn All rights reserved
+
+   This file is part of emapp component and it's licensed under Mozilla Public License. see LICENSE.md for more details.
+ */
+
+#include "MainWindow.h"
+#include "QtApplicationClient.h"
+#include "QtApplicationService.h"
+
+#include "emapp/BaseApplicationService.h"
+#include "emapp/Model.h"
+#include "emapp/Project.h"
+#include "emapp/StringUtils.h"
+#include "emapp/private/CommonInclude.h"
+
+#include <QAction>
+#include <QCloseEvent>
+#include <QCursor>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QKeyEvent>
+#include <QMenu>
+#include <QMenuBar>
+#include <QMimeData>
+#include <QMouseEvent>
+#include <QTimer>
+#include <QUrl>
+#include <QWheelEvent>
+
+#include "bx/os.h"
+
+#include <cstdio>
+
+namespace nanoem {
+namespace qt {
+namespace {
+
+static const char kWindowTitle[] = "nanoem";
+
+static Vector2SI32
+logicalCursorPosition(const QPointF &position)
+{
+    return Vector2SI32(static_cast<int>(position.x()), static_cast<int>(position.y()));
+}
+
+static Vector2SI32
+screenCursorPosition(const QPointF &globalPosition, qreal devicePixelRatio)
+{
+    return Vector2SI32(
+        static_cast<int>(globalPosition.x() * devicePixelRatio), static_cast<int>(globalPosition.y() * devicePixelRatio));
+}
+
+static void
+sendUnicodeInputIfAny(QtApplicationClient *client, const QKeyEvent *event)
+{
+    const QString text(event->text());
+    const Qt::KeyboardModifiers modifiers(event->modifiers());
+    if (!text.isEmpty() && !modifiers.testFlag(Qt::ControlModifier) && !modifiers.testFlag(Qt::MetaModifier)) {
+        for (int i = 0, size = text.size(); i < size; i++) {
+            const char16_t value = text.at(i).unicode();
+            nanoem_u32_t codePoint = value;
+            if (value >= 0xd800 && value < 0xdc00 && i + 1 < size) {
+                const char16_t low = text.at(i + 1).unicode();
+                if (low >= 0xdc00 && low < 0xe000) {
+                    codePoint = 0x10000u + ((value - 0xd800u) << 10) + (low - 0xdc00u);
+                    i++;
+                }
+            }
+            if (codePoint >= 0x20u) {
+                client->sendUnicodeInputMessage(codePoint);
+            }
+        }
+    }
+}
+
+} /* namespace anonymous */
+
+Viewport::Viewport(QtApplicationService *service, QtApplicationClient *client, QWidget *parent)
+    : QOpenGLWidget(parent)
+    , m_service(service)
+    , m_client(client)
+{
+    setFocusPolicy(Qt::StrongFocus);
+    setMouseTracking(true);
+    m_service->setFrameBufferResolver([this]() -> nanoem_u32_t {
+        return static_cast<nanoem_u32_t>(defaultFramebufferObject());
+    });
+}
+
+Viewport::~Viewport()
+{
+    m_service->setFrameBufferResolver(nullptr);
+}
+
+void
+Viewport::initializeGL()
+{
+    /* the initialize message is sent by MainWindow::initialize() before the window is shown so that
+       the command order matches the other platform shells (initialize, plugins, resize) */
+}
+
+void
+Viewport::resizeGL(int w, int h)
+{
+    m_client->sendResizeWindowMessage(Vector2UI32(static_cast<nanoem_u32_t>(w), static_cast<nanoem_u32_t>(h)));
+}
+
+void
+Viewport::paintGL()
+{
+    m_service->draw();
+    m_service->consumeDispatchAllCommandMessages();
+    m_service->dispatchAllEventMessages();
+    m_client->consumeDispatchAllEventMessages();
+}
+
+void
+Viewport::mousePressEvent(QMouseEvent *event)
+{
+    const Vector2SI32 position(logicalCursorPosition(event->position())),
+        screenPosition(screenCursorPosition(event->globalPosition(), devicePixelRatioF()));
+    const int modifiers = QtApplicationService::convertCursorModifier(event->modifiers());
+    const int cursorType = QtApplicationService::convertCursorType(event->button());
+    if (cursorType != 0) {
+        m_client->sendScreenCursorPressMessage(screenPosition, cursorType, modifiers);
+        m_client->sendCursorPressMessage(position, cursorType, modifiers);
+        m_pressedCursorType = cursorType;
+        m_pressedCursorModifiers = modifiers;
+    }
+    m_lastCursorPosition = position;
+    event->accept();
+}
+
+void
+Viewport::mouseReleaseEvent(QMouseEvent *event)
+{
+    const Vector2SI32 position(logicalCursorPosition(event->position())),
+        screenPosition(screenCursorPosition(event->globalPosition(), devicePixelRatioF()));
+    const int modifiers = QtApplicationService::convertCursorModifier(event->modifiers());
+    const int cursorType = QtApplicationService::convertCursorType(event->button());
+    if (cursorType != 0) {
+        m_client->sendScreenCursorReleaseMessage(screenPosition, cursorType, modifiers);
+        m_client->sendCursorReleaseMessage(position, cursorType, modifiers);
+        m_pressedCursorType = 0;
+        m_pressedCursorModifiers = 0;
+    }
+    m_lastCursorPosition = position;
+    event->accept();
+}
+
+void
+Viewport::mouseMoveEvent(QMouseEvent *event)
+{
+    const Vector2SI32 position(logicalCursorPosition(event->position())),
+        delta(position - m_lastCursorPosition),
+        screenPosition(screenCursorPosition(event->globalPosition(), devicePixelRatioF()));
+    m_client->sendScreenCursorMoveMessage(screenPosition, m_pressedCursorType, m_pressedCursorModifiers);
+    m_client->sendCursorMoveMessage(position, delta, m_pressedCursorType, m_pressedCursorModifiers);
+    m_lastCursorPosition = position;
+    event->accept();
+}
+
+void
+Viewport::wheelEvent(QWheelEvent *event)
+{
+    QPoint delta(event->angleDelta());
+    if (delta.isNull()) {
+        delta = event->pixelDelta();
+    }
+    const Vector2SI32 position(logicalCursorPosition(event->position())),
+        scroll(delta.x() / 120, delta.y() / 120);
+    const int modifiers = QtApplicationService::convertCursorModifier(event->modifiers());
+    m_client->sendCursorScrollMessage(position, scroll, modifiers);
+    event->accept();
+}
+
+void
+Viewport::keyPressEvent(QKeyEvent *event)
+{
+    /* auto-repeat only produces text input like the GLFW shell (GLFW_KEY_ACTION_REPEAT is ignored) */
+    if (!event->isAutoRepeat()) {
+        const nanoem_u32_t key = QtApplicationService::convertKeyType(static_cast<Qt::Key>(event->key()));
+        if (key != static_cast<nanoem_u32_t>(BaseApplicationService::kKeyType_UNKNOWN)) {
+            m_client->sendKeyPressMessage(key);
+        }
+    }
+    sendUnicodeInputIfAny(m_client, event);
+    /* do not call QOpenGLWidget::keyPressEvent so that Tab and friends reach nanoem */
+    event->accept();
+}
+
+void
+Viewport::keyReleaseEvent(QKeyEvent *event)
+{
+    if (!event->isAutoRepeat()) {
+        const nanoem_u32_t key = QtApplicationService::convertKeyType(static_cast<Qt::Key>(event->key()));
+        if (key != static_cast<nanoem_u32_t>(BaseApplicationService::kKeyType_UNKNOWN)) {
+            m_client->sendKeyReleaseMessage(key);
+        }
+    }
+    event->accept();
+}
+
+MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *client, QWidget *parent)
+    : QMainWindow(parent)
+    , m_service(service)
+    , m_client(client)
+{
+    m_viewport = new Viewport(m_service, m_client, this);
+    setCentralWidget(m_viewport);
+    setAcceptDrops(true);
+    setWindowTitle(kWindowTitle);
+    const Vector2SI32 minimumWindowSize(BaseApplicationService::minimumRequiredWindowSize());
+    resize(minimumWindowSize.x, minimumWindowSize.y);
+    setupMenus();
+    m_timer = new QTimer(this);
+    m_timer->setInterval(16);
+    QObject::connect(m_timer, &QTimer::timeout, this, [this]() { m_viewport->update(); });
+    m_timer->start();
+    m_client->addDisableCursorEventListener(
+        [](void *userData, const Vector2SI32 &logicalScaleCursorPosition) {
+            BX_UNUSED_1(logicalScaleCursorPosition);
+            auto self = static_cast<MainWindow *>(userData);
+            self->m_viewport->setCursor(Qt::BlankCursor);
+        },
+        this, false);
+    m_client->addEnableCursorEventListener(
+        [](void *userData, const Vector2SI32 &logicalScaleCursorPosition) {
+            auto self = static_cast<MainWindow *>(userData);
+            self->m_viewport->unsetCursor();
+            if (logicalScaleCursorPosition.x != 0 && logicalScaleCursorPosition.y != 0) {
+                QCursor::setPos(self->m_viewport->mapToGlobal(
+                    QPoint(logicalScaleCursorPosition.x, logicalScaleCursorPosition.y)));
+            }
+        },
+        this, false);
+    m_client->addQuitApplicationEventListener(
+        [](void *userData) { static_cast<MainWindow *>(userData)->requestClose(); }, this, false);
+}
+
+MainWindow::~MainWindow()
+{
+}
+
+void
+MainWindow::setupMenus()
+{
+    QMenuBar *bar = menuBar();
+    bar->setNativeMenuBar(false);
+    QMenu *fileMenu = bar->addMenu("&File");
+    QAction *openAction = fileMenu->addAction("&Open...");
+    openAction->setShortcut(QKeySequence::Open);
+    QObject::connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
+    fileMenu->addSeparator();
+    QAction *quitAction = fileMenu->addAction("&Quit");
+    quitAction->setShortcut(QKeySequence::Quit);
+    QObject::connect(quitAction, &QAction::triggered, this, &MainWindow::close);
+}
+
+bool
+MainWindow::initialize()
+{
+    const JSON_Object *config = json_object(m_service->applicationConfiguration());
+    const char *pluginDirPath = json_object_dotget_string(config, "qt.plugin.path");
+    if (!pluginDirPath) {
+        return false;
+    }
+    String pluginPath(pluginDirPath);
+    pluginPath.append("/sokol_glcore33." BX_DL_EXT);
+    if (!QFile::exists(QString::fromUtf8(pluginPath.c_str()))) {
+        return false;
+    }
+    const BaseApplicationClient::InitializeMessageDescription desc(BaseApplicationService::minimumRequiredWindowSize(),
+        SG_PIXELFORMAT_RGBA8, devicePixelRatioF(), pluginPath);
+    m_client->addInitializationCompleteEventListener(
+        [](void *userData) {
+            auto self = static_cast<MainWindow *>(userData);
+            self->m_client->sendActivateMessage();
+            if (!self->m_fileToLoad.isEmpty()) {
+                const URI fileURI(URI::createFromFilePath(String(self->m_fileToLoad.toUtf8().constData())));
+                self->setTitle(fileURI);
+                if (Model::isLoadableExtension(fileURI.pathExtension())) {
+                    /* programmatic load: skips the interactive confirm dialog */
+                    self->m_client->sendLoadFileMessage(fileURI, IFileManager::kDialogTypeLoadModelFile);
+                }
+                else {
+                    self->m_client->sendDropFileMessage(fileURI);
+                }
+            }
+        },
+        this, true);
+    m_client->sendInitializeMessage(desc);
+    return true;
+}
+
+void
+MainWindow::setFileToLoad(const QString &value)
+{
+    m_fileToLoad = value;
+}
+
+void
+MainWindow::setTitle(const URI &fileURI)
+{
+    if (Project::isLoadableExtension(fileURI)) {
+        String title;
+        StringUtils::format(title, "%s - %s", fileURI.lastPathComponentConstString(), kWindowTitle);
+        setWindowTitle(QString::fromUtf8(title.c_str()));
+    }
+}
+
+void
+MainWindow::openFile()
+{
+    const QString filter(tr(
+        "All supported files (*.nemo *.pmx *.pmd *.x *.vmd *.vme *.emod *.wav *.mp3 *.ogg *.flac "
+        "*.mp4 *.webm *.avi *.mov *.bmp *.png *.jpg *.jpeg *.tga);;All files (*)"));
+    const QString path(QFileDialog::getOpenFileName(this, tr("Open File"), m_lastOpenDirectory, filter));
+    if (!path.isEmpty()) {
+        m_lastOpenDirectory = QFileInfo(path).absolutePath();
+        const URI fileURI(URI::createFromFilePath(String(path.toUtf8().constData())));
+        setTitle(fileURI);
+        m_client->sendDropFileMessage(fileURI);
+    }
+}
+
+void
+MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (m_shuttingDown) {
+        event->accept();
+        return;
+    }
+    event->ignore();
+    requestClose();
+}
+
+void
+MainWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::WindowStateChange) {
+        if (isMinimized()) {
+            m_client->sendDeactivateMessage();
+        }
+        else {
+            m_client->sendActivateMessage();
+        }
+    }
+}
+
+void
+MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+    }
+}
+
+void
+MainWindow::dropEvent(QDropEvent *event)
+{
+    for (const QUrl &url : event->mimeData()->urls()) {
+        if (url.isLocalFile()) {
+            const URI fileURI(URI::createFromFilePath(String(url.toLocalFile().toUtf8().constData())));
+            setTitle(fileURI);
+            m_client->sendDropFileMessage(fileURI);
+        }
+    }
+    event->acceptProposedAction();
+}
+
+void
+MainWindow::requestClose()
+{
+    m_client->sendIsProjectDirtyRequestMessage(
+        [](void *userData, bool dirty) {
+            auto self = static_cast<MainWindow *>(userData);
+            if (dirty) {
+                QtApplicationClient *client = self->m_client;
+                client->clearAllProjectAfterConfirmOnceEventListeners();
+                client->addSaveProjectAfterConfirmEventListener(
+                    [](void *userData) {
+                        auto self = static_cast<MainWindow *>(userData);
+                        self->m_client->addCompleteSavingFileEventListener(
+                            [](void *userData, const URI & /* fileURI */, nanoem_u32_t /* type */,
+                                nanoem_u64_t /* ticks */) { static_cast<MainWindow *>(userData)->destroyWindow(); },
+                            self, true);
+                        self->m_client->sendSaveProjectMessage();
+                    },
+                    self, true);
+                client->addDiscardProjectAfterConfirmEventListener(
+                    [](void *userData) { static_cast<MainWindow *>(userData)->destroyWindow(); }, self, true);
+                client->sendConfirmBeforeExitApplicationMessage();
+            }
+            else {
+                self->destroyWindow();
+            }
+        },
+        this);
+}
+
+void
+MainWindow::destroyWindow()
+{
+    m_client->addCompleteDestructionEventListener(
+        [](void *userData) {
+            auto self = static_cast<MainWindow *>(userData);
+            self->m_client->addCompleteTerminationEventListener(
+                [](void *userData) {
+                    auto self = static_cast<MainWindow *>(userData);
+                    self->m_timer->stop();
+                    self->m_shuttingDown = true;
+                    /* the termination event is dispatched from paintGL: defer the close so that the
+                       widget is not destroyed while it is being painted */
+                    QTimer::singleShot(0, self, [self]() { self->close(); });
+                },
+                self, true);
+            self->m_client->sendTerminateMessage();
+        },
+        this, true);
+    m_client->sendDestroyMessage();
+}
+
+} /* namespace qt */
+} /* namespace nanoem */
