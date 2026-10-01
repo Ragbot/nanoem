@@ -169,7 +169,6 @@ QtApplicationService::convertKeyType(Qt::Key value)
 
 QtApplicationService::QtApplicationService(const JSON_Value *config, QtApplicationClient::Bridge *bridge)
     : BaseApplicationService(config)
-    , m_menubarApplicationClient(bridge)
     , m_bridge(bridge)
 {
 }
@@ -197,21 +196,9 @@ QtApplicationService::consumeDispatchAllCommandMessages()
 }
 
 void
-QtApplicationService::dispatchAllEventMessages()
-{
-    m_menubarApplicationClient.dispatchAllEventMessages();
-}
-
-void
 QtApplicationService::setFrameBufferResolver(std::function<nanoem_u32_t()> value)
 {
     m_frameBufferResolver = std::move(value);
-}
-
-BaseApplicationClient *
-QtApplicationService::menubarApplicationClient()
-{
-    return &m_menubarApplicationClient;
 }
 
 void

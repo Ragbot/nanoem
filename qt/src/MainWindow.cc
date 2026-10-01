@@ -6,25 +6,23 @@
 
 #include "MainWindow.h"
 #include "QtApplicationClient.h"
+#include "QtApplicationMenuBuilder.h"
 #include "QtApplicationService.h"
 
+#include "emapp/ApplicationPreference.h"
 #include "emapp/BaseApplicationService.h"
 #include "emapp/Model.h"
 #include "emapp/Project.h"
 #include "emapp/StringUtils.h"
 #include "emapp/private/CommonInclude.h"
 
-#include <QAction>
 #include <QCloseEvent>
 #include <QCursor>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFile>
-#include <QFileDialog>
-#include <QFileInfo>
 #include <QKeyEvent>
 #include <QLayout>
-#include <QMenu>
 #include <QMenuBar>
 #include <QMimeData>
 #include <QMouseEvent>
@@ -115,7 +113,6 @@ Viewport::paintGL()
 {
     m_service->draw();
     m_service->consumeDispatchAllCommandMessages();
-    m_service->dispatchAllEventMessages();
     m_client->consumeDispatchAllEventMessages();
 }
 
@@ -217,7 +214,13 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
     setWindowTitle(kWindowTitle);
     const Vector2SI32 minimumWindowSize(BaseApplicationService::minimumRequiredWindowSize());
     resize(minimumWindowSize.x, minimumWindowSize.y);
-    setupMenus();
+    menuBar()->setNativeMenuBar(false);
+    /* The Qt shell uses the native menu bar exclusively: QtApplicationMenuBuilder implements the
+       shared ApplicationMenuBuilder structure with QMenu/QAction nodes and menubarApplicationClient()
+       returns nullptr so ImGuiWindow does not create its own menu bar. */
+    m_menuBuilder = new QtApplicationMenuBuilder(m_client, m_service->eventPublisher(), m_service->fileManager(),
+        m_service->translator(), m_service, menuBar(),
+        ApplicationPreference(m_service).isModelEditingEnabled());
     /* The project enforces a 1080x700 minimum display size (ImGuiWindow::kMinimumMainWindowSize) while the
        native menu bar steals height from the central widget. Without compensating for it the widget's
        framebuffer is shorter than the project window and the top rows (including the ImGui main menu bar)
@@ -255,21 +258,7 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
 
 MainWindow::~MainWindow()
 {
-}
-
-void
-MainWindow::setupMenus()
-{
-    QMenuBar *bar = menuBar();
-    bar->setNativeMenuBar(false);
-    QMenu *fileMenu = bar->addMenu("&File");
-    QAction *openAction = fileMenu->addAction("&Open...");
-    openAction->setShortcut(QKeySequence::Open);
-    QObject::connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
-    fileMenu->addSeparator();
-    QAction *quitAction = fileMenu->addAction("&Quit");
-    quitAction->setShortcut(QKeySequence::Quit);
-    QObject::connect(quitAction, &QAction::triggered, this, &MainWindow::close);
+    delete m_menuBuilder;
 }
 
 bool
@@ -321,21 +310,6 @@ MainWindow::setTitle(const URI &fileURI)
         String title;
         StringUtils::format(title, "%s - %s", fileURI.lastPathComponentConstString(), kWindowTitle);
         setWindowTitle(QString::fromUtf8(title.c_str()));
-    }
-}
-
-void
-MainWindow::openFile()
-{
-    const QString filter(tr(
-        "All supported files (*.nemo *.pmx *.pmd *.x *.vmd *.vme *.emod *.wav *.mp3 *.ogg *.flac "
-        "*.mp4 *.webm *.avi *.mov *.bmp *.png *.jpg *.jpeg *.tga);;All files (*)"));
-    const QString path(QFileDialog::getOpenFileName(this, tr("Open File"), m_lastOpenDirectory, filter));
-    if (!path.isEmpty()) {
-        m_lastOpenDirectory = QFileInfo(path).absolutePath();
-        const URI fileURI(URI::createFromFilePath(String(path.toUtf8().constData())));
-        setTitle(fileURI);
-        m_client->sendDropFileMessage(fileURI);
     }
 }
 

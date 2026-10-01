@@ -2,6 +2,7 @@
 set(NANOEM_EXECUTABLE_NAME ${PROJECT_NAME}_qt)
 set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtApplicationClient.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtApplicationMenuBuilder.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtApplicationService.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/MainWindow.cc)
 add_executable(${NANOEM_EXECUTABLE_NAME} ${QT_SHELL_SOURCES})

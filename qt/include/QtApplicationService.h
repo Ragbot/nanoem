@@ -30,11 +30,9 @@ public:
 
     void draw();
     void consumeDispatchAllCommandMessages();
-    void dispatchAllEventMessages();
     void setFrameBufferResolver(std::function<nanoem_u32_t()> value);
 
 private:
-    BaseApplicationClient *menubarApplicationClient() override;
     void sendEventMessage(const Nanoem__Application__Event *event) override;
     void handleInitializeApplication() override;
     void beginDefaultPass(
@@ -42,7 +40,6 @@ private:
     void endDefaultPass() override;
     void rebindFrameBuffer();
 
-    QtApplicationClient m_menubarApplicationClient;
     QtApplicationClient::Bridge *m_bridge;
     std::function<nanoem_u32_t()> m_frameBufferResolver;
 };

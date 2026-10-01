@@ -27,6 +27,7 @@ namespace nanoem {
 namespace qt {
 
 class QtApplicationClient;
+class QtApplicationMenuBuilder;
 class QtApplicationService;
 
 class Viewport final : public QOpenGLWidget {
@@ -69,17 +70,15 @@ protected:
     void dropEvent(QDropEvent *event) override;
 
 private:
-    void setupMenus();
-    void openFile();
     void requestClose();
     void destroyWindow();
 
     QtApplicationService *m_service = nullptr;
     QtApplicationClient *m_client = nullptr;
+    QtApplicationMenuBuilder *m_menuBuilder = nullptr;
     Viewport *m_viewport = nullptr;
     QTimer *m_timer = nullptr;
     QString m_fileToLoad;
-    QString m_lastOpenDirectory;
     bool m_shuttingDown = false;
 };
 
