@@ -70,6 +70,7 @@ protected:
     void dropEvent(QDropEvent *event) override;
 
 private:
+    void setupBottomPanels();
     void requestClose();
     void destroyWindow();
 

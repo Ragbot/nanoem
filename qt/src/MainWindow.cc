@@ -8,19 +8,24 @@
 #include "QtApplicationClient.h"
 #include "QtApplicationMenuBuilder.h"
 #include "QtApplicationService.h"
+#include "QtPlayPanel.h"
+#include "QtViewPanel.h"
 
 #include "emapp/ApplicationPreference.h"
 #include "emapp/BaseApplicationService.h"
 #include "emapp/Model.h"
 #include "emapp/Project.h"
 #include "emapp/StringUtils.h"
+#include "emapp/internal/IUIWindow.h"
 #include "emapp/private/CommonInclude.h"
 
 #include <QCloseEvent>
 #include <QCursor>
+#include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFile>
+#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLayout>
 #include <QMenuBar>
@@ -265,6 +270,7 @@ bool
 MainWindow::initialize()
 {
     m_service->setModalDialogParentWidget(this);
+    setupBottomPanels();
     const JSON_Object *config = json_object(m_service->applicationConfiguration());
     const char *pluginDirPath = json_object_dotget_string(config, "qt.plugin.path");
     if (!pluginDirPath) {
@@ -302,6 +308,30 @@ void
 MainWindow::setFileToLoad(const QString &value)
 {
     m_fileToLoad = value;
+}
+
+void
+MainWindow::setupBottomPanels()
+{
+    /* Panels ported to native Qt widgets are masked out of ImGuiWindow::drawMainWindow so ImGui stops
+       drawing them; the remaining ImGui panels keep their strip at the bottom of the central viewport
+       widget while the native ones live in a dock below it (outside the GL widget). */
+    m_service->setNativePanelMask(internal::IUIWindow::kNativePanelTypeView |
+        internal::IUIWindow::kNativePanelTypePlay);
+    auto *dock = new QDockWidget(tr("Panels"), this);
+    dock->setObjectName(QStringLiteral("bottomPanelDock"));
+    dock->setFeatures(QDockWidget::DockWidgetMovable);
+    auto *container = new QWidget(dock);
+    auto *layout = new QHBoxLayout(container);
+    layout->setContentsMargins(4, 4, 4, 4);
+    layout->setSpacing(8);
+    layout->addWidget(new QtViewPanel(m_service, container));
+    layout->addWidget(new QtPlayPanel(m_service, container));
+    layout->addStretch(1);
+    dock->setWidget(container);
+    /* hide the dock title bar: the panels are always visible and the dock must not be closable */
+    dock->setTitleBarWidget(new QWidget(dock));
+    addDockWidget(Qt::BottomDockWidgetArea, dock);
 }
 
 void
