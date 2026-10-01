@@ -36,6 +36,8 @@ public:
     void consumeDispatchAllCommandMessages();
     void setFrameBufferResolver(std::function<nanoem_u32_t()> value);
     void setModalDialogParentWidget(QWidget *value);
+    /* public so native panels can push dialogs through the QtModalDialogPresenter */
+    void addModalDialog(IModalDialog *value) override;
 
 private:
     void sendEventMessage(const Nanoem__Application__Event *event) override;
@@ -46,7 +48,6 @@ private:
     void rebindFrameBuffer();
     const IModalDialog *currentModalDialog() const NANOEM_DECL_NOEXCEPT override;
     IModalDialog *currentModalDialog() NANOEM_DECL_NOEXCEPT override;
-    void addModalDialog(IModalDialog *value) override;
     void clearAllModalDialog() override;
     bool hasModalDialog() const NANOEM_DECL_NOEXCEPT override;
 

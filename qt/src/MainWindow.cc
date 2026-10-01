@@ -8,6 +8,7 @@
 #include "QtApplicationClient.h"
 #include "QtApplicationMenuBuilder.h"
 #include "QtApplicationService.h"
+#include "QtModelPanel.h"
 #include "QtPlayPanel.h"
 #include "QtViewPanel.h"
 
@@ -316,8 +317,8 @@ MainWindow::setupBottomPanels()
     /* Panels ported to native Qt widgets are masked out of ImGuiWindow::drawMainWindow so ImGui stops
        drawing them; the remaining ImGui panels keep their strip at the bottom of the central viewport
        widget while the native ones live in a dock below it (outside the GL widget). */
-    m_service->setNativePanelMask(internal::IUIWindow::kNativePanelTypeView |
-        internal::IUIWindow::kNativePanelTypePlay);
+    m_service->setNativePanelMask(internal::IUIWindow::kNativePanelTypeModel |
+        internal::IUIWindow::kNativePanelTypeView | internal::IUIWindow::kNativePanelTypePlay);
     auto *dock = new QDockWidget(tr("Panels"), this);
     dock->setObjectName(QStringLiteral("bottomPanelDock"));
     dock->setFeatures(QDockWidget::DockWidgetMovable);
@@ -325,6 +326,7 @@ MainWindow::setupBottomPanels()
     auto *layout = new QHBoxLayout(container);
     layout->setContentsMargins(4, 4, 4, 4);
     layout->setSpacing(8);
+    layout->addWidget(new QtModelPanel(m_service, m_client, container));
     layout->addWidget(new QtViewPanel(m_service, container));
     layout->addWidget(new QtPlayPanel(m_service, container));
     layout->addStretch(1);
