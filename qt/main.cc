@@ -140,6 +140,20 @@ runMain(int argc, char *argv[])
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeEditCameraOpenCorrectionDialog;
                             }
+                            else if (name == "bone-bias") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeEditBoneOpenBiasDialog;
+                            }
+                            else if (name == "model-outside-parent") {
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    service.openModelOutsideParentDialog(project);
+                                }
+                            }
+                            else if (name == "accessory-outside-parent") {
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    service.openAccessoryOutsideParentDialog(project);
+                                }
+                            }
                             else if (name == "draw-order") {
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenDrawOrderDialog;

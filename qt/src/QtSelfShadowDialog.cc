@@ -23,7 +23,7 @@ namespace nanoem {
 namespace qt {
 
 QtSelfShadowDialog::QtSelfShadowDialog(QtApplicationService *service, Project *project, QWidget *parent)
-    : QDialog(parent)
+    : QDialog(parent, Qt::Dialog | Qt::Window)
     , m_service(service)
     , m_project(project)
 {

@@ -43,7 +43,7 @@ createFactorSpinBox(const char *prefix, nanoem_f32_t value)
 }
 
 QtMorphCorrectionDialog::QtMorphCorrectionDialog(QtApplicationService *service, Project *project, QWidget *parent)
-    : QDialog(parent)
+    : QDialog(parent, Qt::Dialog | Qt::Window)
     , m_service(service)
     , m_project(project)
 {

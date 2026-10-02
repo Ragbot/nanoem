@@ -61,7 +61,7 @@ vector3Value(QDoubleSpinBox *value[])
 }
 
 QtCameraCorrectionDialog::QtCameraCorrectionDialog(QtApplicationService *service, Project *project, QWidget *parent)
-    : QDialog(parent)
+    : QDialog(parent, Qt::Dialog | Qt::Window)
     , m_service(service)
     , m_project(project)
 {

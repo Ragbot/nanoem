@@ -5,7 +5,9 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtApplicationMenuBuilder.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtApplicationService.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModalDialogPresenter.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtAccessoryOutsideParentDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtAccessoryPanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBoneBiasDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBoneCorrectionDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBonePanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtCameraCorrectionDialog.cc
@@ -15,6 +17,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtLightPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelDrawOrderDialog.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelOutsideParentDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelTransformOrderDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtMorphCorrectionDialog.cc

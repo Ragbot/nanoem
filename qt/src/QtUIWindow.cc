@@ -6,9 +6,12 @@
 
 #include "QtUIWindow.h"
 #include "QtApplicationService.h"
+#include "QtAccessoryOutsideParentDialog.h"
+#include "QtBoneBiasDialog.h"
 #include "QtBoneCorrectionDialog.h"
 #include "QtCameraCorrectionDialog.h"
 #include "QtModelDrawOrderDialog.h"
+#include "QtModelOutsideParentDialog.h"
 #include "QtModelTransformOrderDialog.h"
 #include "QtMorphCorrectionDialog.h"
 #include "QtSelfShadowDialog.h"
@@ -55,6 +58,12 @@ QtUIWindow::closeNativeDialogs()
     if (QtModelTransformOrderDialog *dialog = m_modelTransformOrderDialog.data()) {
         dialog->forceClose();
     }
+    if (QtModelOutsideParentDialog *dialog = m_modelOutsideParentDialog.data()) {
+        dialog->close();
+    }
+    if (QtAccessoryOutsideParentDialog *dialog = m_accessoryOutsideParentDialog.data()) {
+        dialog->close();
+    }
 }
 
 void
@@ -64,15 +73,35 @@ QtUIWindow::setNativePanelMask(nanoem_u32_t value)
 }
 
 void
-QtUIWindow::openModelOutsideParentDialog(Project *value)
+QtUIWindow::openModelOutsideParentDialog(Project *project)
 {
-    m_impl->openModelOutsideParentDialog(value);
+    if (QtModelOutsideParentDialog *dialog = m_modelOutsideParentDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project && project->activeModel()) {
+        auto *dialog = new QtModelOutsideParentDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_modelOutsideParentDialog = dialog;
+        dialog->show();
+    }
 }
 
 void
-QtUIWindow::openAccessoryOutsideParentDialog(Project *value)
+QtUIWindow::openAccessoryOutsideParentDialog(Project *project)
 {
-    m_impl->openAccessoryOutsideParentDialog(value);
+    if (QtAccessoryOutsideParentDialog *dialog = m_accessoryOutsideParentDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project && project->activeAccessory()) {
+        auto *dialog = new QtAccessoryOutsideParentDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_accessoryOutsideParentDialog = dialog;
+        dialog->show();
+    }
 }
 
 void
@@ -209,7 +238,17 @@ QtUIWindow::openBoneCorrectionDialog(Project *project)
 void
 QtUIWindow::openBoneBiasDialog(Project *project)
 {
-    m_impl->openBoneBiasDialog(project);
+    if (QtBoneBiasDialog *dialog = m_boneBiasDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project && project->activeModel()) {
+        auto *dialog = new QtBoneBiasDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_boneBiasDialog = dialog;
+        dialog->show();
+    }
 }
 
 void
