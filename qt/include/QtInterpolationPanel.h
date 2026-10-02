@@ -8,12 +8,14 @@
 #ifndef NANOEM_EMAPP_QT_QTINTERPOLATIONPANEL_H_
 #define NANOEM_EMAPP_QT_QTINTERPOLATIONPANEL_H_
 
+#include "QtInterpolationCurveGraphDialog.h"
+
 #include <QGroupBox>
+#include <QPointer>
 
 class QCheckBox;
 class QComboBox;
 class QPushButton;
-class QSpinBox;
 class QTimer;
 
 namespace nanoem {
@@ -28,16 +30,18 @@ class Bone;
 namespace qt {
 
 class QtApplicationService;
+class QtInterpolationCurveWidget;
 
 /**
  * @brief Native replacement of the ImGui interpolation panel
  *        (ImGuiWindow::drawBoneInterpolationPanel and drawCameraInterpolationPanel).
  *
- *       Shows the active interpolation type selector, the four bezier curve control point editors
- *       (X0/Y0/X1/Y1 written through to the active bone or the global camera exactly like the ImGui
- *       panel, without undo), the curve graph dialog opener (still rendered by ImGui) and the shared
- *       copy/paste/linear controls with the automatic adjustment toggle. Displays the bone variant
- *       while a model is active and the camera variant otherwise.
+ *       Shows the active interpolation type selector, the MMD style editable bezier curve
+ *       (QtInterpolationCurveWidget written through to the active bone or the global camera
+ *       exactly like the ImGui panel, without undo), the curve graph dialog opener (a native Qt
+ *       dialog instead of the ImGui one drawn over the viewport) and the shared copy/paste/linear
+ *       controls with the automatic adjustment toggle. Displays the bone variant while a model is
+ *       active and the camera variant otherwise.
  */
 class QtInterpolationPanel final : public QGroupBox {
 public:
@@ -51,14 +55,17 @@ private:
     void refresh();
     void refreshBone();
     void selectType(int index);
-    void handleCurveChanged(int component, int value);
+    void handleCurveEdited(const Vector4U8 &value);
     void openGraphDialog();
+    void openCurveGraphDialog(Project *project);
 
     QtApplicationService *m_service;
     QTimer *m_timer;
     QPushButton *m_graphButton = nullptr;
     QComboBox *m_typeComboBox = nullptr;
-    QSpinBox *m_curveSpinBoxes[4] = { nullptr, nullptr, nullptr, nullptr };
+    QtInterpolationCurveWidget *m_curveWidget = nullptr;
+    QPointer<QtInterpolationCurveGraphDialog> m_boneGraphDialog;
+    QPointer<QtInterpolationCurveGraphDialog> m_cameraGraphDialog;
     QPushButton *m_copyButton = nullptr;
     QPushButton *m_pasteButton = nullptr;
     QPushButton *m_linearButton = nullptr;

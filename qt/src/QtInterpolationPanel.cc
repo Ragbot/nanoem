@@ -6,6 +6,7 @@
 
 #include "QtInterpolationPanel.h"
 #include "QtApplicationService.h"
+#include "QtInterpolationCurveWidget.h"
 
 #include "emapp/Error.h"
 #include "emapp/ICamera.h"
@@ -23,7 +24,6 @@
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QPushButton>
-#include <QSpinBox>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -92,24 +92,12 @@ QtInterpolationPanel::QtInterpolationPanel(QtApplicationService *service, QWidge
     topRow->addWidget(m_graphButton);
     topRow->addWidget(m_typeComboBox, 1);
     layout->addLayout(topRow);
-    const char *prefixes[4] = { "X0: ", "Y0: ", "X1: ", "Y1: " };
-    for (int i = 0; i < 4; i++) {
-        QSpinBox *spinBox = new QSpinBox(this);
-        spinBox->setRange(0, 0x7f);
-        spinBox->setKeyboardTracking(false);
-        spinBox->setPrefix(QString::fromUtf8(prefixes[i]));
-        m_curveSpinBoxes[i] = spinBox;
-        connect(spinBox, &QSpinBox::valueChanged, this,
-            [this, i](int value) { handleCurveChanged(i, value); });
-    }
-    auto *curveRow1 = new QHBoxLayout;
-    curveRow1->addWidget(m_curveSpinBoxes[0], 1);
-    curveRow1->addWidget(m_curveSpinBoxes[1], 1);
-    layout->addLayout(curveRow1);
-    auto *curveRow2 = new QHBoxLayout;
-    curveRow2->addWidget(m_curveSpinBoxes[2], 1);
-    curveRow2->addWidget(m_curveSpinBoxes[3], 1);
-    layout->addLayout(curveRow2);
+    m_curveWidget = new QtInterpolationCurveWidget(this);
+    m_curveWidget->setControlPointCallback(
+        [this](const Vector4U8 &value) { handleCurveEdited(value); });
+    auto *curveRow = new QHBoxLayout;
+    curveRow->addWidget(m_curveWidget, 1);
+    layout->addLayout(curveRow);
     m_copyButton = new QPushButton(translate(m_service, "nanoem.gui.panel.interpolation.copy"), this);
     m_pasteButton = new QPushButton(translate(m_service, "nanoem.gui.panel.interpolation.paste"), this);
     auto *copyRow = new QHBoxLayout;
@@ -204,7 +192,7 @@ QtInterpolationPanel::selectType(int index)
 }
 
 void
-QtInterpolationPanel::handleCurveChanged(int component, int value)
+QtInterpolationPanel::handleCurveEdited(const Vector4U8 &value)
 {
     Project *project = currentProject();
     if (!project) {
@@ -214,18 +202,14 @@ QtInterpolationPanel::handleCurveChanged(int component, int value)
         if (m_bone) {
             const nanoem_motion_bone_keyframe_interpolation_type_t type =
                 static_cast<nanoem_motion_bone_keyframe_interpolation_type_t>(m_currentType);
-            Vector4U8 controlPoint(m_bone->bezierControlPoints(type));
-            controlPoint[component] = static_cast<nanoem_u8_t>(value);
-            m_bone->setBezierControlPoints(type, controlPoint);
+            m_bone->setBezierControlPoints(type, value);
         }
     }
     else if (!project->isPlaying()) {
         ICamera *camera = project->globalCamera();
         const nanoem_motion_camera_keyframe_interpolation_type_t type =
             static_cast<nanoem_motion_camera_keyframe_interpolation_type_t>(m_currentType);
-        Vector4U8 controlPoint(camera->bezierControlPoints(type));
-        controlPoint[component] = static_cast<nanoem_u8_t>(value);
-        camera->setBezierControlPoints(type, controlPoint);
+        camera->setBezierControlPoints(type, value);
     }
 }
 
@@ -236,13 +220,27 @@ QtInterpolationPanel::openGraphDialog()
     if (project) {
         if (m_boneVariant) {
             if (m_bone) {
-                m_service->openBoneKeyframeBezierInterpolationCurveGraphDialog(project);
+                openCurveGraphDialog(project);
             }
         }
         else {
-            m_service->openCameraKeyframeBezierInterpolationCurveGraphDialog(project);
+            openCurveGraphDialog(project);
         }
     }
+}
+
+void
+QtInterpolationPanel::openCurveGraphDialog(Project *project)
+{
+    QPointer<QtInterpolationCurveGraphDialog> &dialog =
+        m_boneVariant ? m_boneGraphDialog : m_cameraGraphDialog;
+    if (dialog && dialog->isVisible()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    dialog = new QtInterpolationCurveGraphDialog(m_service, project, m_boneVariant, window());
+    dialog->show();
 }
 
 void
@@ -308,15 +306,8 @@ QtInterpolationPanel::refresh()
             static_cast<nanoem_motion_camera_keyframe_interpolation_type_t>(type));
     }
     const bool curveEnabled = boneVariant ? m_bone != nullptr : !playing;
-    for (int i = 0; i < 4; i++) {
-        QSpinBox *spinBox = m_curveSpinBoxes[i];
-        spinBox->blockSignals(true);
-        if (!spinBox->hasFocus()) {
-            spinBox->setValue(controlPoint[i]);
-        }
-        spinBox->setEnabled(curveEnabled || spinBox->hasFocus());
-        spinBox->blockSignals(false);
-    }
+    m_curveWidget->setControlPoint(controlPoint);
+    m_curveWidget->setEnabled(curveEnabled);
     m_graphButton->setEnabled(boneVariant ? m_bone != nullptr : true);
     m_copyButton->setEnabled(!playing);
     const bool hasSelection = project->hasSelectedKeyframeInterpolations();
