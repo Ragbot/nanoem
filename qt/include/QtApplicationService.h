@@ -36,12 +36,17 @@ public:
     void consumeDispatchAllCommandMessages();
     void setFrameBufferResolver(std::function<nanoem_u32_t()> value);
     void setModalDialogParentWidget(QWidget *value);
+    QWidget *modalDialogParentWidget() const NANOEM_DECL_NOEXCEPT
+    {
+        return m_modalDialogParentWidget;
+    }
     /* public so native panels can push dialogs through the QtModalDialogPresenter */
     void addModalDialog(IModalDialog *value) override;
 
 private:
     void sendEventMessage(const Nanoem__Application__Event *event) override;
     void handleInitializeApplication() override;
+    internal::IUIWindow *createUIWindow() override;
     void beginDefaultPass(
         nanoem_u32_t windowID, const sg_pass_action &pa, int width, int height, int &sampleCount) override;
     void endDefaultPass() override;
@@ -54,6 +59,7 @@ private:
     QtApplicationClient::Bridge *m_bridge;
     QtModalDialogPresenter *m_presenter;
     std::function<nanoem_u32_t()> m_frameBufferResolver;
+    QWidget *m_modalDialogParentWidget = nullptr;
 };
 
 } /* namespace qt */

@@ -332,6 +332,7 @@ protected:
     virtual IDebugCapture *createDebugCapture();
     virtual Project::IRendererCapability *createRendererCapability();
     virtual Project::ISkinDeformerFactory *createSkinDeformerFactory();
+    virtual internal::IUIWindow *createUIWindow();
     virtual bool loadFromFile(const URI &fileURI, Project *project, IFileManager::DialogType type, Error &error);
     virtual bool saveAsFile(const URI &fileURI, Project *project, IFileManager::DialogType type, Error &error);
     virtual bool handleCommandMessage(Nanoem__Application__Command *command, Project *project, Error &error);

@@ -7,6 +7,7 @@
 #include "QtApplicationService.h"
 
 #include "QtModalDialogPresenter.h"
+#include "QtUIWindow.h"
 
 #include "emapp/EnumUtils.h"
 #include "emapp/IModalDialog.h"
@@ -209,7 +210,16 @@ QtApplicationService::setFrameBufferResolver(std::function<nanoem_u32_t()> value
 void
 QtApplicationService::setModalDialogParentWidget(QWidget *value)
 {
+    m_modalDialogParentWidget = value;
     m_presenter->setParentWidget(value);
+}
+
+internal::IUIWindow *
+QtApplicationService::createUIWindow()
+{
+    /* wrap the ImGui window: the decorator keeps it as the backend for rendering and the form
+       dialogs that are still ImGui-rendered while intercepting the ported ones */
+    return nanoem_new(QtUIWindow(this, BaseApplicationService::createUIWindow()));
 }
 
 const IModalDialog *

@@ -67,11 +67,17 @@ runMain(int argc, char *argv[])
         json_object_dotset_string(root, "plugin.effect.path", effectPluginPath.c_str());
         json_object_dotset_string(root, "project.tmp.path", tempPath.getCPtr());
         json_object_dotset_string(root, "project.locale", localeBuffer);
-        QString fileToLoad, screenshotPath;
+        QString fileToLoad, screenshotPath, screenshotDialog;
         for (int i = 1; i < argc; i++) {
             const QString arg(QString::fromLocal8Bit(argv[i]));
             if (arg == QStringLiteral("--screenshot") && i + 1 < argc) {
                 screenshotPath = QString::fromLocal8Bit(argv[++i]);
+            }
+            else if (arg == QStringLiteral("--screenshot-dialog") && i + 1 < argc) {
+                /* --screenshot-dialog <name>:<path> opens a native Qt dialog after the window has
+                   settled and grabs it instead of the main window (window.grab() does not cover
+                   independent top-level windows) */
+                screenshotDialog = QString::fromLocal8Bit(argv[++i]);
             }
             else if (!arg.startsWith(QLatin1Char('-'))) {
                 fileToLoad = QFileInfo(arg).absoluteFilePath();
@@ -89,11 +95,11 @@ runMain(int argc, char *argv[])
             client.sendLoadAllModelPluginsMessage(pluginURIs);
             client.sendLoadAllMotionPluginsMessage(pluginURIs);
             window.show();
-            if (!screenshotPath.isEmpty()) {
+            if (!screenshotPath.isEmpty() || !screenshotDialog.isEmpty()) {
                 /* the screenshot mode is a non-interactive test harness: grab the window after
                    the app has settled and force-exit, otherwise the dirty project confirmation
                    dialog (Save/Discard/Cancel) would block waiting for user input */
-                QTimer::singleShot(4000, &window, [&window, screenshotPath]() {
+                QTimer::singleShot(4000, &window, [&window, &service, screenshotPath, screenshotDialog]() {
                     /* the offscreen platform never re-invokes paintGL on its own, so render the GL
                        frame on demand: this runs drawDefaultPass and populates
                        Project::logicalScaleUniformedViewportLayoutRect, which the viewport HUD
@@ -102,10 +108,31 @@ runMain(int argc, char *argv[])
                         gl->grabFramebuffer();
                     }
                     /* let the overlay repaint with the freshly populated layout rect */
-                    QTimer::singleShot(500, &window, [&window, screenshotPath]() {
-                        const QImage image(window.grab().toImage());
-                        image.save(screenshotPath);
-                        QCoreApplication::exit(0);
+                    QTimer::singleShot(500, &window, [&window, &service, screenshotPath, screenshotDialog]() {
+                        if (!screenshotPath.isEmpty()) {
+                            const QImage image(window.grab().toImage());
+                            image.save(screenshotPath);
+                        }
+                        if (screenshotDialog.isEmpty()) {
+                            QCoreApplication::exit(0);
+                            return;
+                        }
+                        const int separator = screenshotDialog.indexOf(QLatin1Char(':'));
+                        const QByteArray name = screenshotDialog.left(separator).toUtf8();
+                        const QString dialogPath = screenshotDialog.mid(separator + 1);
+                        if (name == "self-shadow") {
+                            service.openSelfShadowConfigurationDialog();
+                        }
+                        QTimer::singleShot(300, qApp, [&window, dialogPath]() {
+                            const QWidgetList tops = QApplication::topLevelWidgets();
+                            for (QWidget *it : tops) {
+                                if (it != &window && it->isVisible() && it->isWindow()) {
+                                    it->grab().toImage().save(dialogPath);
+                                    break;
+                                }
+                            }
+                            QCoreApplication::exit(0);
+                        });
                     });
                 });
             }

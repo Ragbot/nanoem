@@ -1405,11 +1405,17 @@ BaseApplicationService::~BaseApplicationService() NANOEM_DECL_NOEXCEPT
 void
 BaseApplicationService::initialize(nanoem_f32_t windowDevicePixelRatio, nanoem_f32_t viewportDevicePixelRatio)
 {
-    m_window = nanoem_new(internal::ImGuiWindow(this));
+    m_window = createUIWindow();
     /* shells may set the mask before the window exists (e.g. MainWindow::initialize) */
     m_window->setNativePanelMask(m_nativePanelMask);
     m_window->initialize(windowDevicePixelRatio, viewportDevicePixelRatio);
     EMLOG_INFO("Initialized an application service: instance={}", static_cast<const void *>(this));
+}
+
+internal::IUIWindow *
+BaseApplicationService::createUIWindow()
+{
+    return nanoem_new(internal::ImGuiWindow(this));
 }
 
 void
