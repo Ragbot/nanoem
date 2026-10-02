@@ -21,10 +21,12 @@ class QtBoneBiasDialog;
 class QtBoneCorrectionDialog;
 class QtCameraCorrectionDialog;
 class QtModelDrawOrderDialog;
+class QtModelEdgeDialog;
 class QtModelOutsideParentDialog;
 class QtModelTransformOrderDialog;
 class QtMorphCorrectionDialog;
 class QtSelfShadowDialog;
+class QtViewportSettingDialog;
 
 /**
  * @brief IUIWindow decorator installed through BaseApplicationService::createUIWindow.
@@ -108,9 +110,11 @@ private:
     QPointer<QtBoneBiasDialog> m_boneBiasDialog;
     QPointer<QtCameraCorrectionDialog> m_cameraCorrectionDialog;
     QPointer<QtModelDrawOrderDialog> m_modelDrawOrderDialog;
+    QPointer<QtModelEdgeDialog> m_modelEdgeDialog;
     QPointer<QtModelOutsideParentDialog> m_modelOutsideParentDialog;
     QPointer<QtModelTransformOrderDialog> m_modelTransformOrderDialog;
     QPointer<QtAccessoryOutsideParentDialog> m_accessoryOutsideParentDialog;
+    QPointer<QtViewportSettingDialog> m_viewportSettingDialog;
 };
 
 } /* namespace qt */

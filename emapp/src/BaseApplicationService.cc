@@ -5323,6 +5323,22 @@ BaseApplicationService::openSelfShadowConfigurationDialog()
     }
 }
 
+void
+BaseApplicationService::openViewportDialog(Project *project)
+{
+    if (m_window) {
+        m_window->openViewportDialog(project);
+    }
+}
+
+void
+BaseApplicationService::openModelEdgeDialog(Project *project)
+{
+    if (m_window) {
+        m_window->openModelEdgeDialog(project);
+    }
+}
+
 IModalDialog *
 BaseApplicationService::handleSaveOnNewProject(void *userData, Project * /* project */)
 {

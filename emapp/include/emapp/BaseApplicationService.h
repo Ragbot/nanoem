@@ -322,6 +322,8 @@ public:
      * @brief Opens the ImGui self shadow configuration dialog through the UI window backend.
      */
     void openSelfShadowConfigurationDialog();
+    void openViewportDialog(Project *project);
+    void openModelEdgeDialog(Project *project);
 
 protected:
     virtual void sendEventMessage(const Nanoem__Application__Event *event) = 0;

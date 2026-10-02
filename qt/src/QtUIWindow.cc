@@ -11,10 +11,12 @@
 #include "QtBoneCorrectionDialog.h"
 #include "QtCameraCorrectionDialog.h"
 #include "QtModelDrawOrderDialog.h"
+#include "QtModelEdgeDialog.h"
 #include "QtModelOutsideParentDialog.h"
 #include "QtModelTransformOrderDialog.h"
 #include "QtMorphCorrectionDialog.h"
 #include "QtSelfShadowDialog.h"
+#include "QtViewportSettingDialog.h"
 
 #include "emapp/IProjectHolder.h"
 #include "emapp/Project.h"
@@ -62,6 +64,9 @@ QtUIWindow::closeNativeDialogs()
         dialog->close();
     }
     if (QtAccessoryOutsideParentDialog *dialog = m_accessoryOutsideParentDialog.data()) {
+        dialog->close();
+    }
+    if (QtViewportSettingDialog *dialog = m_viewportSettingDialog.data()) {
         dialog->close();
     }
 }
@@ -293,7 +298,17 @@ QtUIWindow::openMorphCorrectionDialog(Project *project)
 void
 QtUIWindow::openViewportDialog(Project *project)
 {
-    m_impl->openViewportDialog(project);
+    if (QtViewportSettingDialog *dialog = m_viewportSettingDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project) {
+        auto *dialog = new QtViewportSettingDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_viewportSettingDialog = dialog;
+        dialog->show();
+    }
 }
 
 void
@@ -343,7 +358,17 @@ QtUIWindow::openModelAllObjectsDialog()
 void
 QtUIWindow::openModelEdgeDialog(Project *project)
 {
-    m_impl->openModelEdgeDialog(project);
+    if (QtModelEdgeDialog *dialog = m_modelEdgeDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project && project->activeModel()) {
+        auto *dialog = new QtModelEdgeDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_modelEdgeDialog = dialog;
+        dialog->show();
+    }
 }
 
 void

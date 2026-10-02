@@ -154,6 +154,16 @@ runMain(int argc, char *argv[])
                                     service.openAccessoryOutsideParentDialog(project);
                                 }
                             }
+                            else if (name == "viewport-setting") {
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    service.openViewportDialog(project);
+                                }
+                            }
+                            else if (name == "model-edge") {
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    service.openModelEdgeDialog(project);
+                                }
+                            }
                             else if (name == "draw-order") {
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenDrawOrderDialog;

@@ -17,6 +17,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtLightPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelDrawOrderDialog.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelEdgeDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelOutsideParentDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelTransformOrderDialog.cc
@@ -29,6 +30,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportOverlay.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportParameterBox.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportSettingDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/MainWindow.cc)
 add_executable(${NANOEM_EXECUTABLE_NAME} ${QT_SHELL_SOURCES})
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${NANOEM_EXECUTABLE_NAME})
