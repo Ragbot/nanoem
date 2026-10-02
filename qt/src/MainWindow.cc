@@ -18,6 +18,7 @@
 #include "QtPlayPanel.h"
 #include "QtTimelinePanel.h"
 #include "QtViewPanel.h"
+#include "QtViewport3D.h"
 #include "QtViewportOverlay.h"
 #include "QtViewportParameterBox.h"
 
@@ -96,17 +97,24 @@ sendUnicodeInputIfAny(QtApplicationClient *client, const QKeyEvent *event)
 } /* namespace anonymous */
 
 Viewport::Viewport(QtApplicationService *service, QtApplicationClient *client, QWidget *parent)
-    : QOpenGLWidget(parent)
+    : QWidget(parent)
     , m_service(service)
     , m_client(client)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
-    m_service->setFrameBufferResolver([this]() -> nanoem_u32_t {
-        return static_cast<nanoem_u32_t>(defaultFramebufferObject());
-    });
-    m_overlay = new QtViewportOverlay(m_service, this);
-    m_parameterBox = new QtViewportParameterBox(m_service, this);
+    setAttribute(Qt::WA_OpaquePaintEvent);
+    setAttribute(Qt::WA_NoSystemBackground);
+    
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    
+    m_viewport3D = new QtViewport3D(m_service, m_client, this);
+    layout->addWidget(m_viewport3D);
+    
+    m_overlay = new QtViewportOverlay(m_service, m_viewport3D);
+    m_parameterBox = new QtViewportParameterBox(m_service, m_viewport3D);
 }
 
 Viewport::~Viewport()
@@ -115,122 +123,12 @@ Viewport::~Viewport()
 }
 
 void
-Viewport::initializeGL()
-{
-    /* the initialize message is sent by MainWindow::initialize() before the window is shown so that
-       the command order matches the other platform shells (initialize, plugins, resize) */
-}
-
-void
-Viewport::resizeGL(int w, int h)
-{
-    m_client->sendResizeWindowMessage(Vector2UI32(static_cast<nanoem_u32_t>(w), static_cast<nanoem_u32_t>(h)));
-}
-
-void
 Viewport::resizeEvent(QResizeEvent *event)
 {
-    QOpenGLWidget::resizeEvent(event);
+    QWidget::resizeEvent(event);
     m_overlay->setGeometry(rect());
-    /* pinned at the widget bottom: ImGui's io-clipped copy lived below io.DisplaySize and rarely
-       fit, while the native row is always reachable */
     const int parameterBoxHeight = m_parameterBox->height();
     m_parameterBox->setGeometry(0, height() - parameterBoxHeight, width(), parameterBoxHeight);
-}
-
-void
-Viewport::paintGL()
-{
-    m_service->draw();
-    m_service->consumeDispatchAllCommandMessages();
-    m_client->consumeDispatchAllEventMessages();
-}
-
-void
-Viewport::mousePressEvent(QMouseEvent *event)
-{
-    const Vector2SI32 position(logicalCursorPosition(event->position())),
-        screenPosition(screenCursorPosition(event->globalPosition(), devicePixelRatioF()));
-    const int modifiers = QtApplicationService::convertCursorModifier(event->modifiers());
-    const int cursorType = QtApplicationService::convertCursorType(event->button());
-    if (cursorType != 0) {
-        m_client->sendScreenCursorPressMessage(screenPosition, cursorType, modifiers);
-        m_client->sendCursorPressMessage(position, cursorType, modifiers);
-        m_pressedCursorType = cursorType;
-        m_pressedCursorModifiers = modifiers;
-    }
-    m_lastCursorPosition = position;
-    event->accept();
-}
-
-void
-Viewport::mouseReleaseEvent(QMouseEvent *event)
-{
-    const Vector2SI32 position(logicalCursorPosition(event->position())),
-        screenPosition(screenCursorPosition(event->globalPosition(), devicePixelRatioF()));
-    const int modifiers = QtApplicationService::convertCursorModifier(event->modifiers());
-    const int cursorType = QtApplicationService::convertCursorType(event->button());
-    if (cursorType != 0) {
-        m_client->sendScreenCursorReleaseMessage(screenPosition, cursorType, modifiers);
-        m_client->sendCursorReleaseMessage(position, cursorType, modifiers);
-        m_pressedCursorType = 0;
-        m_pressedCursorModifiers = 0;
-    }
-    m_lastCursorPosition = position;
-    event->accept();
-}
-
-void
-Viewport::mouseMoveEvent(QMouseEvent *event)
-{
-    const Vector2SI32 position(logicalCursorPosition(event->position())),
-        delta(position - m_lastCursorPosition),
-        screenPosition(screenCursorPosition(event->globalPosition(), devicePixelRatioF()));
-    m_client->sendScreenCursorMoveMessage(screenPosition, m_pressedCursorType, m_pressedCursorModifiers);
-    m_client->sendCursorMoveMessage(position, delta, m_pressedCursorType, m_pressedCursorModifiers);
-    m_lastCursorPosition = position;
-    event->accept();
-}
-
-void
-Viewport::wheelEvent(QWheelEvent *event)
-{
-    QPoint delta(event->angleDelta());
-    if (delta.isNull()) {
-        delta = event->pixelDelta();
-    }
-    const Vector2SI32 position(logicalCursorPosition(event->position())),
-        scroll(delta.x() / 120, delta.y() / 120);
-    const int modifiers = QtApplicationService::convertCursorModifier(event->modifiers());
-    m_client->sendCursorScrollMessage(position, scroll, modifiers);
-    event->accept();
-}
-
-void
-Viewport::keyPressEvent(QKeyEvent *event)
-{
-    /* auto-repeat only produces text input like the GLFW shell (GLFW_KEY_ACTION_REPEAT is ignored) */
-    if (!event->isAutoRepeat()) {
-        const nanoem_u32_t key = QtApplicationService::convertKeyType(static_cast<Qt::Key>(event->key()));
-        if (key != static_cast<nanoem_u32_t>(BaseApplicationService::kKeyType_UNKNOWN)) {
-            m_client->sendKeyPressMessage(key);
-        }
-    }
-    sendUnicodeInputIfAny(m_client, event);
-    /* do not call QOpenGLWidget::keyPressEvent so that Tab and friends reach nanoem */
-    event->accept();
-}
-
-void
-Viewport::keyReleaseEvent(QKeyEvent *event)
-{
-    if (!event->isAutoRepeat()) {
-        const nanoem_u32_t key = QtApplicationService::convertKeyType(static_cast<Qt::Key>(event->key()));
-        if (key != static_cast<nanoem_u32_t>(BaseApplicationService::kKeyType_UNKNOWN)) {
-            m_client->sendKeyReleaseMessage(key);
-        }
-    }
-    event->accept();
 }
 
 MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *client, QWidget *parent)
@@ -289,12 +187,8 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
         /* dispatch on the timer so command/event processing never depends on paint scheduling
            (the offscreen platform delivers no repeated paint events, and queued commands must
            still run; the GL context is made current because loads upload GPU resources) */
-        if (m_viewport->isValid()) {
-            m_viewport->makeCurrent();
-            m_service->consumeDispatchAllCommandMessages();
-            m_client->consumeDispatchAllEventMessages();
-            m_viewport->doneCurrent();
-        }
+        m_service->consumeDispatchAllCommandMessages();
+        m_client->consumeDispatchAllEventMessages();
         m_viewport->update();
     });
     m_timer->start();
@@ -345,13 +239,11 @@ MainWindow::initialize()
         [](void *userData) {
             auto self = static_cast<MainWindow *>(userData);
             self->m_client->sendActivateMessage();
-            /* resizeGL fires while no project is current yet, so the first WINDOW_RESIZED gets
-               dropped on the floor and ImGui keeps the stale creation-time display size; re-send
-               it after activation so the ImGui layout matches the actual viewport widget */
-            const qreal dpr = self->m_viewport->devicePixelRatioF();
+            /* Re-send resize after activation so the layout matches the actual viewport widget */
+            const qreal dpr = self->m_viewport->viewport3D()->devicePixelRatioF();
             self->m_client->sendResizeWindowMessage(Vector2UI32(
-                static_cast<nanoem_u32_t>(self->m_viewport->width() * dpr),
-                static_cast<nanoem_u32_t>(self->m_viewport->height() * dpr)));
+                static_cast<nanoem_u32_t>(self->m_viewport->viewport3D()->width() * dpr),
+                static_cast<nanoem_u32_t>(self->m_viewport->viewport3D()->height() * dpr)));
             if (!self->m_fileToLoad.isEmpty()) {
                 const URI fileURI(URI::createFromFilePath(String(self->m_fileToLoad.toUtf8().constData())));
                 self->setTitle(fileURI);

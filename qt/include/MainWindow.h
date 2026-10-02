@@ -30,29 +30,24 @@ namespace qt {
 class QtApplicationClient;
 class QtApplicationMenuBuilder;
 class QtApplicationService;
+class QtViewport3D;
 class QtViewportOverlay;
 class QtViewportParameterBox;
 
-class Viewport final : public QOpenGLWidget {
+class Viewport final : public QWidget {
 public:
     Viewport(QtApplicationService *service, QtApplicationClient *client, QWidget *parent);
     ~Viewport() override;
 
+    QtViewport3D *viewport3D() const { return m_viewport3D; }
+
 protected:
-    void initializeGL() override;
-    void resizeGL(int w, int h) override;
     void resizeEvent(QResizeEvent *event) override;
-    void paintGL() override;
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void wheelEvent(QWheelEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
-    void keyReleaseEvent(QKeyEvent *event) override;
 
 private:
     QtApplicationService *m_service = nullptr;
     QtApplicationClient *m_client = nullptr;
+    QtViewport3D *m_viewport3D = nullptr;
     QtViewportOverlay *m_overlay = nullptr;
     QtViewportParameterBox *m_parameterBox = nullptr;
     Vector2SI32 m_lastCursorPosition = Vector2SI32(0);

@@ -29,6 +29,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtTimelinePanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtUIWindow.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewPanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewport3D.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportOverlay.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportParameterBox.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportSettingDialog.cc

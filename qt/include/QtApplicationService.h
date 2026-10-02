@@ -50,6 +50,7 @@ private:
     void beginDefaultPass(
         nanoem_u32_t windowID, const sg_pass_action &pa, int width, int height, int &sampleCount) override;
     void endDefaultPass() override;
+public:
     void rebindFrameBuffer();
     const IModalDialog *currentModalDialog() const NANOEM_DECL_NOEXCEPT override;
     IModalDialog *currentModalDialog() NANOEM_DECL_NOEXCEPT override;
