@@ -23,6 +23,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelTransformOrderDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtMorphCorrectionDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtMorphPanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtPhysicsEngineDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtPlayPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtSelfShadowDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtTimelinePanel.cc

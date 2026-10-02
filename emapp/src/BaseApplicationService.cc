@@ -5339,6 +5339,14 @@ BaseApplicationService::openModelEdgeDialog(Project *project)
     }
 }
 
+void
+BaseApplicationService::openPhysicsEngineDialog(Project *project)
+{
+    if (m_window) {
+        m_window->openPhysicsEngineDialog(project);
+    }
+}
+
 IModalDialog *
 BaseApplicationService::handleSaveOnNewProject(void *userData, Project * /* project */)
 {

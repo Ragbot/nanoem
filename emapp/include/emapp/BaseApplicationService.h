@@ -324,6 +324,7 @@ public:
     void openSelfShadowConfigurationDialog();
     void openViewportDialog(Project *project);
     void openModelEdgeDialog(Project *project);
+    void openPhysicsEngineDialog(Project *project);
 
 protected:
     virtual void sendEventMessage(const Nanoem__Application__Event *event) = 0;

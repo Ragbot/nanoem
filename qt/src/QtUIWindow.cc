@@ -15,6 +15,7 @@
 #include "QtModelOutsideParentDialog.h"
 #include "QtModelTransformOrderDialog.h"
 #include "QtMorphCorrectionDialog.h"
+#include "QtPhysicsEngineDialog.h"
 #include "QtSelfShadowDialog.h"
 #include "QtViewportSettingDialog.h"
 
@@ -66,7 +67,7 @@ QtUIWindow::closeNativeDialogs()
     if (QtAccessoryOutsideParentDialog *dialog = m_accessoryOutsideParentDialog.data()) {
         dialog->close();
     }
-    if (QtViewportSettingDialog *dialog = m_viewportSettingDialog.data()) {
+    if (QtPhysicsEngineDialog *dialog = m_physicsEngineDialog.data()) {
         dialog->close();
     }
 }
@@ -346,7 +347,17 @@ QtUIWindow::openModelTransformOrderDialog(Project *project)
 void
 QtUIWindow::openPhysicsEngineDialog(Project *project)
 {
-    m_impl->openPhysicsEngineDialog(project);
+    if (QtPhysicsEngineDialog *dialog = m_physicsEngineDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project) {
+        auto *dialog = new QtPhysicsEngineDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_physicsEngineDialog = dialog;
+        dialog->show();
+    }
 }
 
 void

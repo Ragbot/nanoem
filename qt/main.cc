@@ -164,6 +164,11 @@ runMain(int argc, char *argv[])
                                     service.openModelEdgeDialog(project);
                                 }
                             }
+                            else if (name == "physics-engine") {
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    service.openPhysicsEngineDialog(project);
+                                }
+                            }
                             else if (name == "draw-order") {
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenDrawOrderDialog;
