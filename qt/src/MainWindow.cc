@@ -19,6 +19,7 @@
 #include "QtTimelinePanel.h"
 #include "QtViewPanel.h"
 #include "QtViewportOverlay.h"
+#include "QtViewportParameterBox.h"
 
 #include "emapp/ApplicationPreference.h"
 #include "emapp/BaseApplicationService.h"
@@ -105,6 +106,7 @@ Viewport::Viewport(QtApplicationService *service, QtApplicationClient *client, Q
         return static_cast<nanoem_u32_t>(defaultFramebufferObject());
     });
     m_overlay = new QtViewportOverlay(m_service, this);
+    m_parameterBox = new QtViewportParameterBox(m_service, this);
 }
 
 Viewport::~Viewport()
@@ -130,6 +132,10 @@ Viewport::resizeEvent(QResizeEvent *event)
 {
     QOpenGLWidget::resizeEvent(event);
     m_overlay->setGeometry(rect());
+    /* pinned at the widget bottom: ImGui's io-clipped copy lived below io.DisplaySize and rarely
+       fit, while the native row is always reachable */
+    const int parameterBoxHeight = m_parameterBox->height();
+    m_parameterBox->setGeometry(0, height() - parameterBoxHeight, width(), parameterBoxHeight);
 }
 
 void
@@ -378,7 +384,8 @@ MainWindow::setupBottomPanels()
         internal::IUIWindow::kNativePanelTypeCamera | internal::IUIWindow::kNativePanelTypeMorph |
         internal::IUIWindow::kNativePanelTypeLight | internal::IUIWindow::kNativePanelTypeAccessory |
         internal::IUIWindow::kNativePanelTypeView | internal::IUIWindow::kNativePanelTypePlay |
-        internal::IUIWindow::kNativePanelTypeTimeline | internal::IUIWindow::kNativePanelTypeViewportHUD);
+        internal::IUIWindow::kNativePanelTypeTimeline | internal::IUIWindow::kNativePanelTypeViewportHUD |
+        internal::IUIWindow::kNativePanelTypeViewportParameterBox);
     auto *dock = new QDockWidget(tr("Panels"), this);
     dock->setObjectName(QStringLiteral("bottomPanelDock"));
     dock->setFeatures(QDockWidget::DockWidgetMovable);

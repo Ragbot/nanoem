@@ -7,7 +7,10 @@
 #include "QtViewportOverlay.h"
 #include "QtApplicationService.h"
 
+#include "emapp/Accessory.h"
 #include "emapp/IProjectHolder.h"
+#include "emapp/ITranslator.h"
+#include "emapp/Model.h"
 #include "emapp/Project.h"
 
 #include "bx/string.h"
@@ -33,6 +36,10 @@ const qreal kMonitorTextWidth = 115;
 /* matches ImGuiWindow::internalFillRect */
 const QColor kFillColor(0, 0, 0, 166); /* Vector4(0, 0, 0, 0.65) */
 const QColor kStrokeColor(128, 128, 128); /* Vector4(0.5, 0.5, 0.5, 1) */
+/* matches ImGuiWindow::kColorText (#CCCCCC) used by the drawViewport header line */
+const QColor kNameTextColor(0xcc, 0xcc, 0xcc);
+/* matches ImGuiWindow::saveDefaultStyle style.ItemSpacing.y */
+const qreal kTextItemSpacing = 5;
 
 static double
 steadySeconds()
@@ -138,6 +145,27 @@ QtViewportOverlay::paintEvent(QPaintEvent *event)
     painter.setFont(font);
     const QFontMetricsF metrics(font);
     const qreal lineHeight = metrics.height();
+    /* mirrors the header line ImGuiWindow::drawViewport draws first (active model/accessory and
+       active bone name), bottom-aligned to ImGui's ItemSpacing.y above the layout rect so it sits
+       where the ImGui text line sat; the ImGui copy is masked out via kNativePanelTypeViewportHUD */
+    {
+        QString nameText;
+        if (const Model *activeModel = project->activeModel()) {
+            nameText = QString::fromUtf8(activeModel->nameConstString()) + QStringLiteral(": ") +
+                QString::fromUtf8(model::Bone::nameConstString(activeModel->activeBone(), nullptr));
+        }
+        else if (const Accessory *activeAccessory = project->activeAccessory()) {
+            nameText = QString::fromUtf8(m_service->translator()->translate("nanoem.gui.panel.model.default")) +
+                QStringLiteral(": ") + QString::fromUtf8(activeAccessory->nameConstString());
+        }
+        else {
+            nameText = QString::fromUtf8(m_service->translator()->translate("nanoem.gui.panel.model.default"));
+        }
+        const QRectF nameRect(
+            rect.left(), rect.top() - kTextItemSpacing - lineHeight, rect.width(), lineHeight);
+        painter.setPen(kNameTextColor);
+        painter.drawText(nameRect, Qt::AlignLeft | Qt::AlignBottom | Qt::TextSingleLine, nameText);
+    }
     if (project->isPerformanceMonitorEnabled()) {
         char memoryBuffer[32];
         bx::prettify(memoryBuffer, sizeof(memoryBuffer), m_memoryBytes, bx::Units::Kilo);

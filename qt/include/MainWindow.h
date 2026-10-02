@@ -31,6 +31,7 @@ class QtApplicationClient;
 class QtApplicationMenuBuilder;
 class QtApplicationService;
 class QtViewportOverlay;
+class QtViewportParameterBox;
 
 class Viewport final : public QOpenGLWidget {
 public:
@@ -53,6 +54,7 @@ private:
     QtApplicationService *m_service = nullptr;
     QtApplicationClient *m_client = nullptr;
     QtViewportOverlay *m_overlay = nullptr;
+    QtViewportParameterBox *m_parameterBox = nullptr;
     Vector2SI32 m_lastCursorPosition = Vector2SI32(0);
     int m_pressedCursorType = 0;
     int m_pressedCursorModifiers = 0;

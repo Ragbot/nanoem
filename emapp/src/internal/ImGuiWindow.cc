@@ -3936,7 +3936,14 @@ ImGuiWindow::drawViewport(Project *project, IState *state, nanoem_u32_t flags)
 {
     const nanoem_f32_t deviceScaleRatio = project->windowDevicePixelRatio(),
                        invertDeviceScaleRatio = 1.0f / deviceScaleRatio;
-    if (const Model *activeModel = project->activeModel()) {
+    const nanoem_u32_t nativeViewportHUD = (m_nativePanelMask & kNativePanelTypeViewportHUD) != 0;
+    if (nativeViewportHUD) {
+        /* the native overlay draws this header line; advance the cursor exactly like ImGui::Text
+           does (line height, ItemSize adds ItemSpacing.y itself) so the viewport layout rect and
+           everything positioned from it does not shift */
+        ImGui::Dummy(ImVec2(0, ImGui::GetTextLineHeight()));
+    }
+    else if (const Model *activeModel = project->activeModel()) {
         ImGui::Text(
             "%s: %s", activeModel->nameConstString(), model::Bone::nameConstString(activeModel->activeBone(), nullptr));
     }
@@ -3999,7 +4006,6 @@ ImGuiWindow::drawViewport(Project *project, IState *state, nanoem_u32_t flags)
         m_primitive2D.setScaleFactor(deviceScaleRatio);
         drawPrimitive2D(project, state, flags);
         drawTransformHandleSet(project, state, offset);
-        const bool nativeViewportHUD = (m_nativePanelMask & kNativePanelTypeViewportHUD) != 0;
         if (!nativeViewportHUD && project->isFPSCounterEnabled()) {
             drawFPSCounter(project, offset);
         }
@@ -4009,7 +4015,7 @@ ImGuiWindow::drawViewport(Project *project, IState *state, nanoem_u32_t flags)
         drawBoneTooltip(project, flags);
     }
     drawList->PopClipRect();
-    if (!isModelEditingEnabled) {
+    if (!isModelEditingEnabled && (m_nativePanelMask & kNativePanelTypeViewportParameterBox) == 0) {
         drawViewportParameterBox(project);
     }
     project->setViewportHovered(hovered);

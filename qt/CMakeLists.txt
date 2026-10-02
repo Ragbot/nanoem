@@ -18,6 +18,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtTimelinePanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportOverlay.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportParameterBox.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/MainWindow.cc)
 add_executable(${NANOEM_EXECUTABLE_NAME} ${QT_SHELL_SOURCES})
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${NANOEM_EXECUTABLE_NAME})

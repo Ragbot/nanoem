@@ -40,7 +40,8 @@ public:
         kNativePanelTypeView = 1 << 8,
         kNativePanelTypePlay = 1 << 9,
         kNativePanelTypeViewportHUD = 1 << 10,
-        kNativePanelTypeMaxEnum = 1 << 11,
+        kNativePanelTypeViewportParameterBox = 1 << 11,
+        kNativePanelTypeMaxEnum = 1 << 12,
     };
 
     virtual ~IUIWindow() NANOEM_DECL_NOEXCEPT
