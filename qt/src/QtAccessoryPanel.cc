@@ -51,6 +51,8 @@ QtAccessoryPanel::QtAccessoryPanel(QtApplicationService *service, QWidget *paren
     , m_service(service)
     , m_timer(nullptr)
 {
+    /* allow the panel to collapse horizontally like the ImGui version */
+    setMinimumWidth(0);
     auto *layout = new QVBoxLayout(this);
     m_nameStack = new QStackedWidget(this);
     m_accessoryComboBox = new QComboBox(this);

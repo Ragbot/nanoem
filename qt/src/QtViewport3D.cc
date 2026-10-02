@@ -169,8 +169,42 @@ QtViewport3D::drawPrimitives()
 void
 QtViewport3D::drawViewportImage()
 {
-    /* The viewport image is already rendered to the framebuffer by sokol.
-       Nothing additional needed here - the framebuffer is already our widget's. */
+    if (!m_project) {
+        return;
+    }
+
+    /* Get the viewport image texture from the project */
+    sg_image viewportImage = m_project->viewportPrimaryImage();
+    if (!sg::is_valid(viewportImage)) {
+        return;
+    }
+
+    /* The sokol image ID is the OpenGL texture ID */
+    GLuint textureId = static_cast<GLuint>(viewportImage.id);
+    if (textureId == 0) {
+        return;
+    }
+
+    /* Draw a full-screen quad with the viewport texture */
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, textureId);
+
+    /* Set texture parameters */
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    /* Draw a full-screen quad */
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 1.0f); glVertex2f(-1.0f, -1.0f);
+    glTexCoord2f(1.0f, 1.0f); glVertex2f(1.0f, -1.0f);
+    glTexCoord2f(1.0f, 0.0f); glVertex2f(1.0f, 1.0f);
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(-1.0f, 1.0f);
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
 }
 
 void

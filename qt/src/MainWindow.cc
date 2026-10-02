@@ -163,7 +163,7 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
        returns nullptr so ImGuiWindow does not create its own menu bar. */
     /* Use native menu bar (default on macOS, opt-in on Linux/Windows) so QMenu dropdowns appear
        above the QOpenGLWidget; native menus use separate native windows that stack correctly. */
-    menuBar()->setNativeMenuBar(true);
+    menuBar()->setNativeMenuBar(false);
     m_menuBuilder = new QtApplicationMenuBuilder(m_client, m_service->eventPublisher(), m_service->fileManager(),
         m_service->translator(), m_service, menuBar(),
         ApplicationPreference(m_service).isModelEditingEnabled());
