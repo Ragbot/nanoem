@@ -16,6 +16,7 @@
 #include "QtModelPanel.h"
 #include "QtMorphPanel.h"
 #include "QtPlayPanel.h"
+#include "QtTimelinePanel.h"
 #include "QtViewPanel.h"
 #include "QtViewportOverlay.h"
 
@@ -40,6 +41,7 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QResizeEvent>
+#include <QSplitter>
 #include <QTimer>
 #include <QUrl>
 #include <QWheelEvent>
@@ -231,11 +233,27 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
     , m_client(client)
 {
     m_viewport = new Viewport(m_service, m_client, this);
-    setCentralWidget(m_viewport);
+    /* the native timeline column shares the central widget with the viewport. ImGuiWindow clamps
+       io.DisplaySize up to the 1080px project minimum, so the window grows by the timeline width
+       (like it grows by the menu bar height below) to keep the GL widget at the full project
+       width with the timeline sitting beside it instead of stealing viewport space. */
+    const Vector2SI32 minimumWindowSize(BaseApplicationService::minimumRequiredWindowSize());
+    const int timelineWidth = int(minimumWindowSize.x * 0.3f); /* ImGuiWindow::kTimelineDefaultWidthRatio */
+    auto *centralWidget = new QWidget(this);
+    auto *centralLayout = new QHBoxLayout(centralWidget);
+    centralLayout->setContentsMargins(0, 0, 0, 0);
+    centralLayout->setSpacing(0);
+    auto *timeline = new QtTimelinePanel(m_service, centralWidget);
+    auto *splitter = new QSplitter(Qt::Horizontal, centralWidget);
+    splitter->setChildrenCollapsible(false);
+    splitter->setHandleWidth(4);
+    splitter->addWidget(timeline);
+    splitter->addWidget(m_viewport);
+    centralLayout->addWidget(splitter);
+    setCentralWidget(centralWidget);
     setAcceptDrops(true);
     setWindowTitle(kWindowTitle);
-    const Vector2SI32 minimumWindowSize(BaseApplicationService::minimumRequiredWindowSize());
-    resize(minimumWindowSize.x, minimumWindowSize.y);
+    resize(minimumWindowSize.x + timelineWidth, minimumWindowSize.y);
     menuBar()->setNativeMenuBar(false);
     /* The Qt shell uses the native menu bar exclusively: QtApplicationMenuBuilder implements the
        shared ApplicationMenuBuilder structure with QMenu/QAction nodes and menubarApplicationClient()
@@ -249,6 +267,10 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
        are rendered outside the framebuffer and clipped. Grow the window by the menu bar height and forbid
        shrinking below that size so the framebuffer always covers the full project size. */
     layout()->activate();
+    splitter->setSizes(QList<int>() << timelineWidth << minimumWindowSize.x);
+    /* dragging the splitter wider must never shrink the GL widget below the project minimum:
+       ImGuiWindow would clamp io.DisplaySize back up and clip the viewport chrome on the right */
+    timeline->setMaximumWidth(width() - minimumWindowSize.x - splitter->handleWidth());
     if (const int menuBarHeight = menuBar()->height()) {
         resize(width(), height() + menuBarHeight);
         setMinimumSize(width(), height());
@@ -349,14 +371,14 @@ void
 MainWindow::setupBottomPanels()
 {
     /* Panels ported to native Qt widgets are masked out of ImGuiWindow::drawMainWindow so ImGui stops
-       drawing them; the remaining ImGui panels (the timeline column) keep their place while the
-       native ones live in a dock below the central viewport widget (outside the GL widget). */
+       drawing them; everything (bottom row, timeline column, viewport HUD) now lives in native Qt
+       widgets docked around the central viewport widget (outside the GL widget). */
     m_service->setNativePanelMask(internal::IUIWindow::kNativePanelTypeInterpolation |
         internal::IUIWindow::kNativePanelTypeModel | internal::IUIWindow::kNativePanelTypeBone |
         internal::IUIWindow::kNativePanelTypeCamera | internal::IUIWindow::kNativePanelTypeMorph |
         internal::IUIWindow::kNativePanelTypeLight | internal::IUIWindow::kNativePanelTypeAccessory |
         internal::IUIWindow::kNativePanelTypeView | internal::IUIWindow::kNativePanelTypePlay |
-        internal::IUIWindow::kNativePanelTypeViewportHUD);
+        internal::IUIWindow::kNativePanelTypeTimeline | internal::IUIWindow::kNativePanelTypeViewportHUD);
     auto *dock = new QDockWidget(tr("Panels"), this);
     dock->setObjectName(QStringLiteral("bottomPanelDock"));
     dock->setFeatures(QDockWidget::DockWidgetMovable);

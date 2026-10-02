@@ -15,6 +15,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtMorphPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtPlayPanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtTimelinePanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtViewportOverlay.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/MainWindow.cc)
