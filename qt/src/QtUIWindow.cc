@@ -6,9 +6,13 @@
 
 #include "QtUIWindow.h"
 #include "QtApplicationService.h"
+#include "QtBoneCorrectionDialog.h"
+#include "QtCameraCorrectionDialog.h"
+#include "QtMorphCorrectionDialog.h"
 #include "QtSelfShadowDialog.h"
 
 #include "emapp/IProjectHolder.h"
+#include "emapp/Project.h"
 #include "emapp/private/CommonInclude.h"
 
 namespace nanoem {
@@ -29,9 +33,18 @@ QtUIWindow::~QtUIWindow()
 void
 QtUIWindow::closeNativeDialogs()
 {
+    /* every native dialog holds a raw Project pointer: close them whenever the wrapped window
+       resets or is destroyed, mirroring how ImGuiWindow::reset clears m_dialogWindows */
     if (QtSelfShadowDialog *dialog = m_selfShadowDialog.data()) {
-        /* the dialog holds a Project pointer: close it whenever the wrapped window resets or is
-           destroyed, mirroring how ImGuiWindow::reset clears m_dialogWindows */
+        dialog->close();
+    }
+    if (QtMorphCorrectionDialog *dialog = m_morphCorrectionDialog.data()) {
+        dialog->close();
+    }
+    if (QtBoneCorrectionDialog *dialog = m_boneCorrectionDialog.data()) {
+        dialog->close();
+    }
+    if (QtCameraCorrectionDialog *dialog = m_cameraCorrectionDialog.data()) {
         dialog->close();
     }
 }
@@ -171,7 +184,18 @@ QtUIWindow::openBoneParametersDialog(Project *project)
 void
 QtUIWindow::openBoneCorrectionDialog(Project *project)
 {
-    m_impl->openBoneCorrectionDialog(project);
+    if (QtBoneCorrectionDialog *dialog = m_boneCorrectionDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    /* ImGuiWindow::openBoneCorrectionDialog only opens with an active model */
+    if (project && project->activeModel()) {
+        auto *dialog = new QtBoneCorrectionDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_boneCorrectionDialog = dialog;
+        dialog->show();
+    }
 }
 
 void
@@ -189,13 +213,34 @@ QtUIWindow::openCameraParametersDialog(Project *project)
 void
 QtUIWindow::openCameraCorrectionDialog(Project *project)
 {
-    m_impl->openCameraCorrectionDialog(project);
+    if (QtCameraCorrectionDialog *dialog = m_cameraCorrectionDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project) {
+        auto *dialog = new QtCameraCorrectionDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_cameraCorrectionDialog = dialog;
+        dialog->show();
+    }
 }
 
 void
 QtUIWindow::openMorphCorrectionDialog(Project *project)
 {
-    m_impl->openMorphCorrectionDialog(project);
+    if (QtMorphCorrectionDialog *dialog = m_morphCorrectionDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    /* ImGuiWindow::openMorphCorrectionDialog only opens with an active model */
+    if (project && project->activeModel()) {
+        auto *dialog = new QtMorphCorrectionDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_morphCorrectionDialog = dialog;
+        dialog->show();
+    }
 }
 
 void

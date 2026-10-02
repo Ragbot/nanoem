@@ -16,6 +16,9 @@ namespace nanoem {
 namespace qt {
 
 class QtApplicationService;
+class QtBoneCorrectionDialog;
+class QtCameraCorrectionDialog;
+class QtMorphCorrectionDialog;
 class QtSelfShadowDialog;
 
 /**
@@ -95,6 +98,9 @@ private:
     QtApplicationService *m_service;
     internal::IUIWindow *m_impl;
     QPointer<QtSelfShadowDialog> m_selfShadowDialog;
+    QPointer<QtMorphCorrectionDialog> m_morphCorrectionDialog;
+    QPointer<QtBoneCorrectionDialog> m_boneCorrectionDialog;
+    QPointer<QtCameraCorrectionDialog> m_cameraCorrectionDialog;
 };
 
 } /* namespace qt */

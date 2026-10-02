@@ -123,6 +123,30 @@ runMain(int argc, char *argv[])
                         if (name == "self-shadow") {
                             service.openSelfShadowConfigurationDialog();
                         }
+                        else {
+                            /* go through the real menu dispatch so the whole chain the menus use
+                               (service switch -> IUIWindow seam -> QtUIWindow override) is what
+                               gets exercised */
+                            nanoem_u32_t menuItemType = 0;
+                            if (name == "morph-correction") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeEditMorphOpenCorrectionDialog;
+                            }
+                            else if (name == "bone-correction") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeEditBoneOpenCorrectionDialog;
+                            }
+                            else if (name == "camera-correction") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeEditCameraOpenCorrectionDialog;
+                            }
+                            if (menuItemType != 0) {
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    nanoem::Error error;
+                                    service.dispatchMenuItemAction(project, menuItemType, error);
+                                }
+                            }
+                        }
                         QTimer::singleShot(300, qApp, [&window, dialogPath]() {
                             const QWidgetList tops = QApplication::topLevelWidgets();
                             for (QWidget *it : tops) {

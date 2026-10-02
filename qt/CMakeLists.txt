@@ -6,13 +6,16 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtApplicationService.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModalDialogPresenter.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtAccessoryPanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBoneCorrectionDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBonePanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtCameraCorrectionDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtCameraPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationCurveGraphDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationCurveWidget.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtLightPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelPanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtMorphCorrectionDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtMorphPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtPlayPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtSelfShadowDialog.cc
