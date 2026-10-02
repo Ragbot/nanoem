@@ -140,6 +140,14 @@ runMain(int argc, char *argv[])
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeEditCameraOpenCorrectionDialog;
                             }
+                            else if (name == "draw-order") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenDrawOrderDialog;
+                            }
+                            else if (name == "transform-order") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenTransformOrderDialog;
+                            }
                             if (menuItemType != 0) {
                                 if (nanoem::Project *project = service.projectHolder()->currentProject()) {
                                     nanoem::Error error;

@@ -8,6 +8,8 @@
 #include "QtApplicationService.h"
 #include "QtBoneCorrectionDialog.h"
 #include "QtCameraCorrectionDialog.h"
+#include "QtModelDrawOrderDialog.h"
+#include "QtModelTransformOrderDialog.h"
 #include "QtMorphCorrectionDialog.h"
 #include "QtSelfShadowDialog.h"
 
@@ -46,6 +48,12 @@ QtUIWindow::closeNativeDialogs()
     }
     if (QtCameraCorrectionDialog *dialog = m_cameraCorrectionDialog.data()) {
         dialog->close();
+    }
+    if (QtModelDrawOrderDialog *dialog = m_modelDrawOrderDialog.data()) {
+        dialog->forceClose();
+    }
+    if (QtModelTransformOrderDialog *dialog = m_modelTransformOrderDialog.data()) {
+        dialog->forceClose();
     }
 }
 
@@ -252,13 +260,33 @@ QtUIWindow::openViewportDialog(Project *project)
 void
 QtUIWindow::openModelDrawOrderDialog(Project *project)
 {
-    m_impl->openModelDrawOrderDialog(project);
+    if (QtModelDrawOrderDialog *dialog = m_modelDrawOrderDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project) {
+        auto *dialog = new QtModelDrawOrderDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_modelDrawOrderDialog = dialog;
+        dialog->show();
+    }
 }
 
 void
 QtUIWindow::openModelTransformOrderDialog(Project *project)
 {
-    m_impl->openModelTransformOrderDialog(project);
+    if (QtModelTransformOrderDialog *dialog = m_modelTransformOrderDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project) {
+        auto *dialog = new QtModelTransformOrderDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_modelTransformOrderDialog = dialog;
+        dialog->show();
+    }
 }
 
 void

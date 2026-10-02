@@ -18,6 +18,8 @@ namespace qt {
 class QtApplicationService;
 class QtBoneCorrectionDialog;
 class QtCameraCorrectionDialog;
+class QtModelDrawOrderDialog;
+class QtModelTransformOrderDialog;
 class QtMorphCorrectionDialog;
 class QtSelfShadowDialog;
 
@@ -101,6 +103,8 @@ private:
     QPointer<QtMorphCorrectionDialog> m_morphCorrectionDialog;
     QPointer<QtBoneCorrectionDialog> m_boneCorrectionDialog;
     QPointer<QtCameraCorrectionDialog> m_cameraCorrectionDialog;
+    QPointer<QtModelDrawOrderDialog> m_modelDrawOrderDialog;
+    QPointer<QtModelTransformOrderDialog> m_modelTransformOrderDialog;
 };
 
 } /* namespace qt */
