@@ -17,6 +17,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
+#include <QOpenGLWidget>
 #include <QSurfaceFormat>
 #include <QTimer>
 
@@ -93,9 +94,19 @@ runMain(int argc, char *argv[])
                    the app has settled and force-exit, otherwise the dirty project confirmation
                    dialog (Save/Discard/Cancel) would block waiting for user input */
                 QTimer::singleShot(4000, &window, [&window, screenshotPath]() {
-                    const QImage image(window.grab().toImage());
-                    image.save(screenshotPath);
-                    QCoreApplication::exit(0);
+                    /* the offscreen platform never re-invokes paintGL on its own, so render the GL
+                       frame on demand: this runs drawDefaultPass and populates
+                       Project::logicalScaleUniformedViewportLayoutRect, which the viewport HUD
+                       overlay needs to position the FPS badge and the CPU/MEM box */
+                    if (QOpenGLWidget *gl = window.findChild<QOpenGLWidget *>()) {
+                        gl->grabFramebuffer();
+                    }
+                    /* let the overlay repaint with the freshly populated layout rect */
+                    QTimer::singleShot(500, &window, [&window, screenshotPath]() {
+                        const QImage image(window.grab().toImage());
+                        image.save(screenshotPath);
+                        QCoreApplication::exit(0);
+                    });
                 });
             }
             result = app.exec();

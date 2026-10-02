@@ -17,6 +17,7 @@
 #include "QtMorphPanel.h"
 #include "QtPlayPanel.h"
 #include "QtViewPanel.h"
+#include "QtViewportOverlay.h"
 
 #include "emapp/ApplicationPreference.h"
 #include "emapp/BaseApplicationService.h"
@@ -38,6 +39,7 @@
 #include <QMenuBar>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QResizeEvent>
 #include <QTimer>
 #include <QUrl>
 #include <QWheelEvent>
@@ -100,6 +102,7 @@ Viewport::Viewport(QtApplicationService *service, QtApplicationClient *client, Q
     m_service->setFrameBufferResolver([this]() -> nanoem_u32_t {
         return static_cast<nanoem_u32_t>(defaultFramebufferObject());
     });
+    m_overlay = new QtViewportOverlay(m_service, this);
 }
 
 Viewport::~Viewport()
@@ -118,6 +121,13 @@ void
 Viewport::resizeGL(int w, int h)
 {
     m_client->sendResizeWindowMessage(Vector2UI32(static_cast<nanoem_u32_t>(w), static_cast<nanoem_u32_t>(h)));
+}
+
+void
+Viewport::resizeEvent(QResizeEvent *event)
+{
+    QOpenGLWidget::resizeEvent(event);
+    m_overlay->setGeometry(rect());
 }
 
 void
@@ -305,6 +315,13 @@ MainWindow::initialize()
         [](void *userData) {
             auto self = static_cast<MainWindow *>(userData);
             self->m_client->sendActivateMessage();
+            /* resizeGL fires while no project is current yet, so the first WINDOW_RESIZED gets
+               dropped on the floor and ImGui keeps the stale creation-time display size; re-send
+               it after activation so the ImGui layout matches the actual viewport widget */
+            const qreal dpr = self->m_viewport->devicePixelRatioF();
+            self->m_client->sendResizeWindowMessage(Vector2UI32(
+                static_cast<nanoem_u32_t>(self->m_viewport->width() * dpr),
+                static_cast<nanoem_u32_t>(self->m_viewport->height() * dpr)));
             if (!self->m_fileToLoad.isEmpty()) {
                 const URI fileURI(URI::createFromFilePath(String(self->m_fileToLoad.toUtf8().constData())));
                 self->setTitle(fileURI);
@@ -338,7 +355,8 @@ MainWindow::setupBottomPanels()
         internal::IUIWindow::kNativePanelTypeModel | internal::IUIWindow::kNativePanelTypeBone |
         internal::IUIWindow::kNativePanelTypeCamera | internal::IUIWindow::kNativePanelTypeMorph |
         internal::IUIWindow::kNativePanelTypeLight | internal::IUIWindow::kNativePanelTypeAccessory |
-        internal::IUIWindow::kNativePanelTypeView | internal::IUIWindow::kNativePanelTypePlay);
+        internal::IUIWindow::kNativePanelTypeView | internal::IUIWindow::kNativePanelTypePlay |
+        internal::IUIWindow::kNativePanelTypeViewportHUD);
     auto *dock = new QDockWidget(tr("Panels"), this);
     dock->setObjectName(QStringLiteral("bottomPanelDock"));
     dock->setFeatures(QDockWidget::DockWidgetMovable);

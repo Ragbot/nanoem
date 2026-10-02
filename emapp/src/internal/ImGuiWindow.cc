@@ -3999,10 +3999,11 @@ ImGuiWindow::drawViewport(Project *project, IState *state, nanoem_u32_t flags)
         m_primitive2D.setScaleFactor(deviceScaleRatio);
         drawPrimitive2D(project, state, flags);
         drawTransformHandleSet(project, state, offset);
-        if (project->isFPSCounterEnabled()) {
+        const bool nativeViewportHUD = (m_nativePanelMask & kNativePanelTypeViewportHUD) != 0;
+        if (!nativeViewportHUD && project->isFPSCounterEnabled()) {
             drawFPSCounter(project, offset);
         }
-        if (project->isPerformanceMonitorEnabled()) {
+        if (!nativeViewportHUD && project->isPerformanceMonitorEnabled()) {
             drawPerformanceMonitor(project, offset);
         }
         drawBoneTooltip(project, flags);

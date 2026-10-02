@@ -20,6 +20,7 @@ class QDropEvent;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
+class QResizeEvent;
 class QTimer;
 class QWheelEvent;
 
@@ -29,6 +30,7 @@ namespace qt {
 class QtApplicationClient;
 class QtApplicationMenuBuilder;
 class QtApplicationService;
+class QtViewportOverlay;
 
 class Viewport final : public QOpenGLWidget {
 public:
@@ -38,6 +40,7 @@ public:
 protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
+    void resizeEvent(QResizeEvent *event) override;
     void paintGL() override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -49,6 +52,7 @@ protected:
 private:
     QtApplicationService *m_service = nullptr;
     QtApplicationClient *m_client = nullptr;
+    QtViewportOverlay *m_overlay = nullptr;
     Vector2SI32 m_lastCursorPosition = Vector2SI32(0);
     int m_pressedCursorType = 0;
     int m_pressedCursorModifiers = 0;
