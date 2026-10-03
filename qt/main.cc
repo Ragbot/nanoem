@@ -18,6 +18,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QOpenGLWidget>
+#include <QPainter>
 #include <QSurfaceFormat>
 #include <QTimer>
 
@@ -110,7 +111,18 @@ runMain(int argc, char *argv[])
                     /* let the overlay repaint with the freshly populated layout rect */
                     QTimer::singleShot(500, &window, [&window, &service, screenshotPath, screenshotDialog]() {
                         if (!screenshotPath.isEmpty()) {
+                            /* window.grab() only rasterizes native Qt widgets; the offscreen platform
+                               never composites the QOpenGLWidget FBO, so read the rendered 3D frame
+                               directly and overlay it at the viewport widget's position. This is what
+                               makes the viewport pixels (and therefore the native present path)
+                               visible in offscreen captures. */
+                            QOpenGLWidget *gl = window.findChild<QOpenGLWidget *>();
+                            const QImage framebuffer(gl ? gl->grabFramebuffer() : QImage());
                             const QImage image(window.grab().toImage());
+                            if (!framebuffer.isNull() && gl) {
+                                QPainter painter(&image);
+                                painter.drawImage(QRect(gl->mapTo(&window, QPoint(0, 0)), gl->size()), framebuffer);
+                            }
                             image.save(screenshotPath);
                         }
                         if (screenshotDialog.isEmpty()) {

@@ -8,17 +8,12 @@
 #include "QtApplicationService.h"
 #include "QtApplicationClient.h"
 
-#include "emapp/IPrimitive2D.h"
-#include "emapp/IState.h"
-#include "emapp/Project.h"
 #include "emapp/Forward.h"
-#include "emapp/BaseApplicationService.h"
 
-#include <QMouseEvent>
-#include <QWheelEvent>
 #include <QKeyEvent>
-
-#include "sokol/sokol_gfx.h"
+#include <QMouseEvent>
+#include <QOpenGLContext>
+#include <QWheelEvent>
 
 namespace nanoem {
 namespace qt {
@@ -32,7 +27,10 @@ QtViewport3D::QtViewport3D(QtApplicationService *service, QtApplicationClient *c
     setMouseTracking(true);
     setAttribute(Qt::WA_OpaquePaintEvent);
     setAttribute(Qt::WA_NoSystemBackground);
-    
+    /* the widget always paints itself (the engine clears the whole framebuffer every frame), so Qt
+       never has to fall back to the translucent system background behind the GL surface */
+    setAutoFillBackground(false);
+
     m_service->setFrameBufferResolver([this]() -> nanoem_u32_t {
         return static_cast<nanoem_u32_t>(defaultFramebufferObject());
     });
@@ -43,42 +41,27 @@ QtViewport3D::~QtViewport3D()
     m_service->setFrameBufferResolver(nullptr);
 }
 
-void
-QtViewport3D::setProject(Project *project)
+bool
+QtViewport3D::makeContextCurrent()
 {
-    m_project = project;
-}
-
-void
-QtViewport3D::setState(IState *state)
-{
-    m_state = state;
-}
-
-void
-QtViewport3D::setFlags(nanoem_u32_t flags)
-{
-    m_flags = flags;
+    if (!context()) {
+        /* QOpenGLWidget discards its GL context when the widget is (re)shown; grabFramebuffer()
+           is the supported way to force Qt to recreate the context (and the FBO) on demand. */
+        grabFramebuffer();
+    }
+    if (context()) {
+        makeCurrent();
+    }
+    return QOpenGLContext::currentContext() != nullptr;
 }
 
 void
 QtViewport3D::initializeGL()
 {
     initializeOpenGLFunctions();
-    setupSokol();
+    /* sokol itself (sg_setup) was already performed by BaseApplicationService during startup; the
+       widget only owns the context and the framebuffer everything is drawn into */
     m_sokolInitialized = true;
-}
-
-void
-QtViewport3D::setupSokol()
-{
-    /* sokol is initialized by BaseApplicationService during startup.
-       We just need to ensure the OpenGL context is current for sokol calls. */
-    makeCurrent();
-    
-    /* The sokol context is already created by BaseApplicationService.
-       We just need to rebind the framebuffer on each frame. */
-    doneCurrent();
 }
 
 void
@@ -92,119 +75,26 @@ QtViewport3D::resizeGL(int w, int h)
 void
 QtViewport3D::paintGL()
 {
-    if (!m_sokolInitialized || !m_project) {
+    if (!m_sokolInitialized) {
         return;
     }
-
     makeCurrent();
-    
-    /* Rebind the widget's framebuffer for sokol rendering */
+    /* QOpenGLWidget renders into its own FBO; make sure sokol (and our own glClear below) target it */
     if (m_service) {
         m_service->rebindFrameBuffer();
     }
-
-    /* Clear the widget's framebuffer */
-    glClearColor(0.118f, 0.118f, 0.118f, 1.0f); /* #1E1E1E */
+    /* Fallback background: drawDefaultPass() early-outs when no project is loaded, and the widget
+       must never stay transparent (that is what made the window behind show through) */
+    glClearColor(0.118f, 0.118f, 0.118f, 1.0f); /* #1E1E1E: matches the Visual Studio editor background */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-    /* Render the 3D scene using sokol (emapp engine) */
-    renderScene();
-
-    /* Draw gizmos and primitives using native Qt OpenGL */
-    drawGizmos();
-    drawPrimitives();
-
-    /* Display the rendered viewport image */
-    drawViewportImage();
-
-    doneCurrent();
-}
-
-void
-QtViewport3D::renderScene()
-{
-    if (!m_project || !m_state) {
-        return;
-    }
-
-    /* The emapp engine renders the 3D scene via sokol in drawDefaultPass().
-       We need to trigger that rendering. The BaseApplicationService::drawDefaultPass()
-       will call draw() on the IUIWindow, which for Qt is our QtUIWindow decorator.
-       But we want to bypass ImGui entirely and render directly.
-       
-       For now, we'll let the emapp engine render via its normal pipeline.
-       The key is that the framebuffer is already bound to our widget's framebuffer
-       via m_service->rebindFrameBuffer(). */
-    
-    /* Trigger the emapp rendering pipeline */
+    /* drives the whole emapp frame: offscreen/shadow/viewport passes, then ImGuiWindow (whose
+       viewport image entry is replaced by Project::presentViewportImage for this shell) */
     if (m_service) {
         m_service->draw();
-        m_service->consumeDispatchAllCommandMessages();
     }
-}
-
-void
-QtViewport3D::drawGizmos()
-{
-    if (!m_project || !m_state) {
-        return;
-    }
-
-    /* TODO: Implement native Qt gizmo rendering.
-       The gizmo controller currently uses ImDrawList via ImGui.
-       Need to reimplement using native Qt OpenGL or sokol directly. */
-}
-
-void
-QtViewport3D::drawPrimitives()
-{
-    if (!m_project || !m_state) {
-        return;
-    }
-
-    /* TODO: Implement native Qt primitive 2D rendering.
-       Currently uses ImDrawList via ImGuiWindow::m_primitive2D. */
-}
-
-void
-QtViewport3D::drawViewportImage()
-{
-    if (!m_project) {
-        return;
-    }
-
-    /* Get the viewport image texture from the project */
-    sg_image viewportImage = m_project->viewportPrimaryImage();
-    if (!sg::is_valid(viewportImage)) {
-        return;
-    }
-
-    /* The sokol image ID is the OpenGL texture ID */
-    GLuint textureId = static_cast<GLuint>(viewportImage.id);
-    if (textureId == 0) {
-        return;
-    }
-
-    /* Draw a full-screen quad with the viewport texture */
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, textureId);
-
-    /* Set texture parameters */
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    /* Draw a full-screen quad */
-    glBegin(GL_QUADS);
-    glTexCoord2f(0.0f, 1.0f); glVertex2f(-1.0f, -1.0f);
-    glTexCoord2f(1.0f, 1.0f); glVertex2f(1.0f, -1.0f);
-    glTexCoord2f(1.0f, 0.0f); glVertex2f(1.0f, 1.0f);
-    glTexCoord2f(0.0f, 0.0f); glVertex2f(-1.0f, 1.0f);
-    glEnd();
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glDisable(GL_TEXTURE_2D);
+    /* NOTE: do not call doneCurrent() here. QOpenGLWidget::paintEvent() dereferences
+       QOpenGLContext::currentContext() once paintGL() returns (to blit the FBO onto the widget),
+       and it relies on the context still being current. */
 }
 
 void

@@ -187,9 +187,14 @@ MainWindow::MainWindow(QtApplicationService *service, QtApplicationClient *clien
         /* dispatch on the timer so command/event processing never depends on paint scheduling
            (the offscreen platform delivers no repeated paint events, and queued commands must
            still run; the GL context is made current because loads upload GPU resources) */
-        m_service->consumeDispatchAllCommandMessages();
+        if (m_viewport->viewport3D()->makeContextCurrent()) {
+            m_service->consumeDispatchAllCommandMessages();
+        }
         m_client->consumeDispatchAllEventMessages();
+        /* repaint both the container (overlay/parameter box children) and the GL widget itself:
+           updating only the parent does not schedule paintGL() on the QOpenGLWidget child */
         m_viewport->update();
+        m_viewport->viewport3D()->update();
     });
     m_timer->start();
     m_client->addDisableCursorEventListener(
@@ -279,7 +284,7 @@ MainWindow::setupBottomPanels()
         internal::IUIWindow::kNativePanelTypeLight | internal::IUIWindow::kNativePanelTypeAccessory |
         internal::IUIWindow::kNativePanelTypeView | internal::IUIWindow::kNativePanelTypePlay |
         internal::IUIWindow::kNativePanelTypeTimeline | internal::IUIWindow::kNativePanelTypeViewportHUD |
-        internal::IUIWindow::kNativePanelTypeViewportParameterBox);
+        internal::IUIWindow::kNativePanelTypeViewportParameterBox | internal::IUIWindow::kNativePanelTypeViewport);
     auto *dock = new QDockWidget(tr("Panels"), this);
     dock->setObjectName(QStringLiteral("bottomPanelDock"));
     dock->setFeatures(QDockWidget::DockWidgetMovable);

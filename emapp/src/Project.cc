@@ -1283,6 +1283,7 @@ Project::Project(const Injector &injector)
     m_shadowCamera = nanoem_new(ShadowCamera(this));
     m_renderPassBlitter = nanoem_new(internal::BlitPass(this, !topLeft));
     m_viewportPassBlitter = nanoem_new(internal::BlitPass(this, false));
+    m_viewportPresentBlitter = nanoem_new(internal::BlitPass(this, !topLeft));
     m_renderPassCleaner = nanoem_new(internal::ClearPass(this));
     m_drawQueue = nanoem_new(DrawQueue);
     m_drawQueue->m_project = this;
@@ -1342,6 +1343,7 @@ Project::~Project() NANOEM_DECL_NOEXCEPT
     nanoem_delete_safe(m_sharedImageBlitter);
     nanoem_delete_safe(m_renderPassCleaner);
     nanoem_delete_safe(m_viewportPassBlitter);
+    nanoem_delete_safe(m_viewportPresentBlitter);
 }
 
 bool
@@ -1436,6 +1438,7 @@ Project::destroy() NANOEM_DECL_NOEXCEPT
     m_renderPassBlitter->destroy();
     m_renderPassCleaner->destroy();
     m_viewportPassBlitter->destroy();
+    m_viewportPresentBlitter->destroy();
     if (m_sharedImageBlitter) {
         m_sharedImageBlitter->destroy();
     }
@@ -2984,6 +2987,23 @@ Project::drawViewport()
         m_lastDrawnRenderPass = m_viewportPrimaryPass.m_handle;
         /* reset localFrameIndex here to apply elapsed local frame in effect */
         m_localFrameIndex.second = 0;
+        SG_POP_GROUP();
+    }
+}
+
+void
+Project::presentViewportImage(const Vector4 &rect, const Vector2UI16 &passSize)
+{
+    if (sg::is_valid(m_viewportPrimaryPass.m_handle) && rect.z > 0.0f && rect.w > 0.0f) {
+        SG_PUSH_GROUP("Project::presentViewportImage");
+        const sg_image image = viewportPrimaryImage();
+        if (sg::query_image_state(image) == SG_RESOURCESTATE_VALID) {
+            PixelFormat format;
+            /* the destination is the window pass, so leave every format untouched: sokol resolves
+               them to the context (swapchain) formats just like ImGuiWindow::renderDrawList() does */
+            format.reset(1);
+            m_viewportPresentBlitter->present(tinystl::make_pair(image, kViewportPrimaryName), rect, passSize, format);
+        }
         SG_POP_GROUP();
     }
 }

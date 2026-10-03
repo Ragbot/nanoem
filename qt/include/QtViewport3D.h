@@ -9,8 +9,6 @@
 #define NANOEM_EMAPP_QT_QTVIEWPORT3D_H_
 
 #include "emapp/Forward.h"
-#include "emapp/IState.h"
-#include "emapp/Project.h"
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
@@ -20,14 +18,14 @@ namespace qt {
 
 class QtApplicationService;
 class QtApplicationClient;
-class IState;
 
 /**
- * @brief Native Qt 3D viewport widget - replaces ImGui-based viewport rendering.
+ * @brief Native Qt 3D viewport widget.
  *
- *        Renders the 3D scene directly using sokol on the widget's framebuffer,
- *        and draws gizmos/primitives using native Qt OpenGL.
- *        Zero ImGui dependency.
+ *        Owns the OpenGL context the emapp engine renders into: every frame it binds the widget
+ *        framebuffer and drives BaseApplicationService::drawDefaultPass(). The viewport image
+ *        itself is composited by Project::presentViewportImage() (see kNativePanelTypeViewport),
+ *        so no ImGui draw list is involved in putting the rendered scene on screen.
  */
 class QtViewport3D final : public QOpenGLWidget, protected QOpenGLFunctions
 {
@@ -35,9 +33,16 @@ public:
     QtViewport3D(QtApplicationService *service, QtApplicationClient *client, QWidget *parent = nullptr);
     ~QtViewport3D() override;
 
-    void setProject(Project *project);
-    void setState(IState *state);
-    void setFlags(nanoem_u32_t flags);
+    /**
+     * @brief Makes the widget's GL context current, recreating it if Qt dropped it.
+     *
+     *        QOpenGLWidget discards its GL context when the widget is (re)shown, while command
+     *        dispatch (sg_setup, model/effect loading) uploads GPU resources. Calling this before
+     *        dispatching guarantees a current context.
+     *
+     * @return true when a GL context is current afterwards.
+     */
+    bool makeContextCurrent();
 
 protected:
     void initializeGL() override;
@@ -51,17 +56,8 @@ protected:
     void keyReleaseEvent(QKeyEvent *event) override;
 
 private:
-    void setupSokol();
-    void renderScene();
-    void drawGizmos();
-    void drawPrimitives();
-    void drawViewportImage();
-
     QtApplicationService *m_service = nullptr;
     QtApplicationClient *m_client = nullptr;
-    Project *m_project = nullptr;
-    IState *m_state = nullptr;
-    nanoem_u32_t m_flags = 0;
     bool m_sokolInitialized = false;
     Vector2SI32 m_lastCursorPosition = Vector2SI32(0);
     int m_pressedCursorType = 0;

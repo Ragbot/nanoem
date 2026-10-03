@@ -25,6 +25,16 @@ public:
         const Vector4 &rect, const PixelFormat &format);
     void blit(sg::PassBlock::IDrawQueue *drawQueue, const sg::NamedPass &dest, const sg::NamedImage &source,
         const Vector4 &rect, const PixelFormat &format, const Vector4 &viewport);
+    /**
+     * @brief Draws `source` onto `rect` (device pixels, top-left origin) of the currently active
+     *       pass (e.g. the window/default pass).
+     *
+     *       Unlike blit() this does not begin/end a render pass: the caller must have begun the
+     *       destination pass already. Used by shells that composite the viewport image onto the
+     *       window framebuffer without going through ImGui.
+     */
+    void present(
+        const sg::NamedImage &source, const Vector4 &rect, const Vector2UI16 &passSize, const PixelFormat &format);
     void markAsDirty();
 
 private:

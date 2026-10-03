@@ -41,7 +41,10 @@ public:
         kNativePanelTypePlay = 1 << 9,
         kNativePanelTypeViewportHUD = 1 << 10,
         kNativePanelTypeViewportParameterBox = 1 << 11,
-        kNativePanelTypeMaxEnum = 1 << 12,
+        /* when set, the UI window skips drawing the viewport image itself and the native shell
+           composites Project::viewportPrimaryImage() into the active default pass instead */
+        kNativePanelTypeViewport = 1 << 12,
+        kNativePanelTypeMaxEnum = 1 << 13,
     };
 
     virtual ~IUIWindow() NANOEM_DECL_NOEXCEPT

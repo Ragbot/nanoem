@@ -96,6 +96,35 @@ BlitPass::blit(sg::PassBlock::IDrawQueue *drawQueue, const sg::NamedPass &dest, 
 }
 
 void
+BlitPass::present(
+    const sg::NamedImage &source, const Vector4 &rect, const Vector2UI16 &passSize, const PixelFormat &format)
+{
+    nanoem_parameter_assert(
+        sg::query_image_state(source.first) == SG_RESOURCESTATE_VALID, "source image must NOT be null");
+    SG_INSERT_MARKERF("BlitPass::present(sourceHandle=%d, sourceImage=%s, x=%.0f, y=%.0f, width=%.0f, height=%.0f)",
+        source.first, source.second, rect.x, rect.y, rect.z, rect.w);
+    if (rect.z > 0.0f && rect.w > 0.0f && passSize.x > 0 && passSize.y > 0) {
+        if (m_dirty) {
+            /* always the whole pass; the visible sub rectangle is expressed through the viewport so
+               the vertices (and therefore the texture orientation) stay backend agnostic */
+            setupVertexBuffer(Vector4(0, 0, 1, 1));
+            m_dirty = false;
+        }
+        sg_pipeline pipeline = { SG_INVALID_ID };
+        setupPipeline(format, pipeline);
+        sg_bindings bindings(m_bindings);
+        bindings.fs_images[0] = source.first;
+        sg::PassBlock pb;
+        pb.applyViewport(
+            static_cast<int>(rect.x), static_cast<int>(rect.y), static_cast<int>(rect.z), static_cast<int>(rect.w));
+        pb.applyPipelineBindings(pipeline, bindings);
+        pb.draw(0, 4);
+        /* the caller keeps drawing into the same (already begun) pass, restore the full pass viewport */
+        pb.applyViewport(0, 0, passSize.x, passSize.y);
+    }
+}
+
+void
 BlitPass::markAsDirty()
 {
     m_dirty = true;

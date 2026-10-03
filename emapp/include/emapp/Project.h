@@ -368,6 +368,15 @@ public:
     void drawAllOffscreenRenderTargets();
     void drawShadowMap();
     void drawViewport();
+    /**
+     * @brief Presents viewportPrimaryImage() into the currently active pass (the window pass).
+     *
+     *       Used by shells that composite the 3D viewport natively instead of relying on
+     *       ImGuiWindow::drawViewport() drawing it with ImDrawList::AddImage().
+     *       @param rect device pixel rectangle (top-left origin) of the viewport inside the pass
+     *       @param passSize size of the active pass in device pixels
+     */
+    void presentViewportImage(const Vector4 &rect, const Vector2UI16 &passSize);
     void flushAllCommandBuffers();
 
     sg_pass beginRenderPass(sg_pass pass);
@@ -920,6 +929,7 @@ private:
     effect::RenderPassScope *m_offscreenRenderPassScope;
     internal::BlitPass *m_viewportPassBlitter;
     internal::BlitPass *m_renderPassBlitter;
+    internal::BlitPass *m_viewportPresentBlitter;
     internal::BlitPass *m_sharedImageBlitter;
     internal::ClearPass *m_renderPassCleaner;
     internal::DebugDrawer *m_sharedDebugDrawer;

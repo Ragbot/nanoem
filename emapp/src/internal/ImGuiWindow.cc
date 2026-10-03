@@ -3981,18 +3981,27 @@ ImGuiWindow::drawViewport(Project *project, IState *state, nanoem_u32_t flags)
         viewportImageFrom.y > a.y ? (viewportImageFrom.y - a.y) * invertDeviceScaleRatio : 0);
     project->setLogicalViewportPadding(viewportPadding);
     drawList->PushClipRect(a, b);
-    drawList->AddImage(reinterpret_cast<ImTextureID>(m_transparentTileImage.id), viewportImageFrom, viewportImageTo,
-        ImVec2(0, 0), ImVec2(viewportImageRect.z * tileSizeRatio, viewportImageRect.w * tileSizeRatio));
-    ImVec2 uv0, uv1;
-    if (sg::query_features().origin_top_left) {
-        uv1 = ImVec2(1, 1);
+    if ((m_nativePanelMask & kNativePanelTypeViewport) != 0) {
+        /* The shell composites viewportPrimaryImage() itself (Project::presentViewportImage) so the
+           3D viewport does not depend on ImGui at all. Only the layout reservation above survives,
+           everything drawn below (gizmos, handles, HUD badges) keeps using the same rect. */
+        const ImVec2 &displaySize = ImGui::GetIO().DisplaySize;
+        project->presentViewportImage(viewportImageRect, Vector2UI16(displaySize.x, displaySize.y));
     }
     else {
-        uv0 = ImVec2(0, 1);
-        uv1 = ImVec2(1, 0);
+        drawList->AddImage(reinterpret_cast<ImTextureID>(m_transparentTileImage.id), viewportImageFrom, viewportImageTo,
+            ImVec2(0, 0), ImVec2(viewportImageRect.z * tileSizeRatio, viewportImageRect.w * tileSizeRatio));
+        ImVec2 uv0, uv1;
+        if (sg::query_features().origin_top_left) {
+            uv1 = ImVec2(1, 1);
+        }
+        else {
+            uv0 = ImVec2(0, 1);
+            uv1 = ImVec2(1, 0);
+        }
+        drawList->AddImage(
+            reinterpret_cast<ImTextureID>(viewportImageHandle.id), viewportImageFrom, viewportImageTo, uv0, uv1);
     }
-    drawList->AddImage(
-        reinterpret_cast<ImTextureID>(viewportImageHandle.id), viewportImageFrom, viewportImageTo, uv0, uv1);
     if (isModelEditingEnabled) {
         if (m_gizmoController) {
             hovered &= m_gizmoController->draw(drawList, offset, size, project);
