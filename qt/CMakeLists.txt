@@ -25,6 +25,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtMorphPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtPhysicsEngineDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtPlayPanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtPreferenceDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtScaleAllSelectedKeyframesDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtSelfShadowDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtTimelinePanel.cc

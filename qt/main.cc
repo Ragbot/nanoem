@@ -20,6 +20,7 @@
 #include <QOpenGLWidget>
 #include <QPainter>
 #include <QSurfaceFormat>
+#include <QTabWidget>
 #include <QTimer>
 
 #include "bx/commandline.h"
@@ -132,6 +133,8 @@ runMain(int argc, char *argv[])
                         const int separator = screenshotDialog.indexOf(QLatin1Char(':'));
                         const QByteArray name = screenshotDialog.left(separator).toUtf8();
                         const QString dialogPath = screenshotDialog.mid(separator + 1);
+                        /* tabbed dialogs record which tab to switch to before the grab */
+                        int dialogTabIndex = -1;
                         if (name == "self-shadow") {
                             service.openSelfShadowConfigurationDialog();
                         }
@@ -184,6 +187,12 @@ runMain(int argc, char *argv[])
                             else if (name == "scale-all-keyframes") {
                                 service.openScaleAllSelectedKeyframesDialog();
                             }
+                            else if (name == "preference" || name == "preference-project" ||
+                                name == "preference-special") {
+                                menuItemType = nanoem::ApplicationMenuBuilder::kMenuItemTypeEditPreference;
+                                dialogTabIndex =
+                                    name == "preference-project" ? 1 : (name == "preference-special" ? 2 : 0);
+                            }
                             else if (name == "draw-order") {
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenDrawOrderDialog;
@@ -199,10 +208,15 @@ runMain(int argc, char *argv[])
                                 }
                             }
                         }
-                        QTimer::singleShot(300, qApp, [&window, dialogPath]() {
+                        QTimer::singleShot(300, qApp, [&window, dialogPath, dialogTabIndex]() {
                             const QWidgetList tops = QApplication::topLevelWidgets();
                             for (QWidget *it : tops) {
                                 if (it != &window && it->isVisible() && it->isWindow()) {
+                                    if (dialogTabIndex >= 0) {
+                                        if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
+                                            tabs->setCurrentIndex(dialogTabIndex);
+                                        }
+                                    }
                                     it->grab().toImage().save(dialogPath);
                                     break;
                                 }

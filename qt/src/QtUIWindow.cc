@@ -16,6 +16,7 @@
 #include "QtModelTransformOrderDialog.h"
 #include "QtMorphCorrectionDialog.h"
 #include "QtPhysicsEngineDialog.h"
+#include "QtPreferenceDialog.h"
 #include "QtScaleAllSelectedKeyframesDialog.h"
 #include "QtSelfShadowDialog.h"
 #include "QtViewportSettingDialog.h"
@@ -72,6 +73,9 @@ QtUIWindow::closeNativeDialogs()
         dialog->close();
     }
     if (QtScaleAllSelectedKeyframesDialog *dialog = m_scaleAllSelectedKeyframesDialog.data()) {
+        dialog->close();
+    }
+    if (QtPreferenceDialog *dialog = m_preferenceDialog.data()) {
         dialog->close();
     }
 }
@@ -418,7 +422,19 @@ QtUIWindow::openModelParameterDialog(Project *project, Error &error)
 void
 QtUIWindow::openPreferenceDialog()
 {
-    m_impl->openPreferenceDialog();
+    if (QtPreferenceDialog *dialog = m_preferenceDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    /* ImGuiWindow::openPreferenceDialog indexes the dialog windows map with a project-less open;
+       the dialog itself reads/writes project state so it only opens with a live project */
+    if (Project *project = m_service->projectHolder()->currentProject()) {
+        auto *dialog = new QtPreferenceDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_preferenceDialog = dialog;
+        dialog->show();
+    }
 }
 
 bool

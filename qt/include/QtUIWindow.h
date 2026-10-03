@@ -26,6 +26,7 @@ class QtModelOutsideParentDialog;
 class QtModelTransformOrderDialog;
 class QtMorphCorrectionDialog;
 class QtPhysicsEngineDialog;
+class QtPreferenceDialog;
 class QtScaleAllSelectedKeyframesDialog;
 class QtSelfShadowDialog;
 class QtViewportSettingDialog;
@@ -118,6 +119,7 @@ private:
     QPointer<QtAccessoryOutsideParentDialog> m_accessoryOutsideParentDialog;
     QPointer<QtViewportSettingDialog> m_viewportSettingDialog;
     QPointer<QtPhysicsEngineDialog> m_physicsEngineDialog;
+    QPointer<QtPreferenceDialog> m_preferenceDialog;
     QPointer<QtScaleAllSelectedKeyframesDialog> m_scaleAllSelectedKeyframesDialog;
 };
 
