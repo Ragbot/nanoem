@@ -9,9 +9,11 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtAccessoryPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBoneBiasDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBoneCorrectionDialog.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBoneParametersDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtBonePanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtCameraCorrectionDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtCameraPanel.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtCameraParametersDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationCurveGraphDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationCurveWidget.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationPanel.cc

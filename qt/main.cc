@@ -193,6 +193,13 @@ runMain(int argc, char *argv[])
                                 dialogTabIndex =
                                     name == "preference-project" ? 1 : (name == "preference-special" ? 2 : 0);
                             }
+                            else if (name == "bone-parameters") {
+                                menuItemType = nanoem::ApplicationMenuBuilder::kMenuItemTypeEditBoneOpenParameterDialog;
+                            }
+                            else if (name == "camera-parameters") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeEditCameraOpenParameterDialog;
+                            }
                             else if (name == "draw-order") {
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenDrawOrderDialog;

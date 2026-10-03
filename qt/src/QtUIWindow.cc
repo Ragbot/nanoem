@@ -9,7 +9,9 @@
 #include "QtAccessoryOutsideParentDialog.h"
 #include "QtBoneBiasDialog.h"
 #include "QtBoneCorrectionDialog.h"
+#include "QtBoneParametersDialog.h"
 #include "QtCameraCorrectionDialog.h"
+#include "QtCameraParametersDialog.h"
 #include "QtModelDrawOrderDialog.h"
 #include "QtModelEdgeDialog.h"
 #include "QtModelOutsideParentDialog.h"
@@ -22,6 +24,7 @@
 #include "QtViewportSettingDialog.h"
 
 #include "emapp/IProjectHolder.h"
+#include "emapp/Model.h"
 #include "emapp/Project.h"
 #include "emapp/private/CommonInclude.h"
 
@@ -76,6 +79,12 @@ QtUIWindow::closeNativeDialogs()
         dialog->close();
     }
     if (QtPreferenceDialog *dialog = m_preferenceDialog.data()) {
+        dialog->close();
+    }
+    if (QtBoneParametersDialog *dialog = m_boneParametersDialog.data()) {
+        dialog->close();
+    }
+    if (QtCameraParametersDialog *dialog = m_cameraParametersDialog.data()) {
         dialog->close();
     }
 }
@@ -229,7 +238,18 @@ QtUIWindow::setScreenCursorRelease(int type, int x, int y, int modifiers)
 void
 QtUIWindow::openBoneParametersDialog(Project *project)
 {
-    m_impl->openBoneParametersDialog(project);
+    if (QtBoneParametersDialog *dialog = m_boneParametersDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    /* ImGuiWindow::drawBoneParameterPanel only renders while the model has an active bone */
+    if (project && project->activeModel() && project->activeModel()->activeBone()) {
+        auto *dialog = new QtBoneParametersDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_boneParametersDialog = dialog;
+        dialog->show();
+    }
 }
 
 void
@@ -268,7 +288,17 @@ QtUIWindow::openBoneBiasDialog(Project *project)
 void
 QtUIWindow::openCameraParametersDialog(Project *project)
 {
-    m_impl->openCameraParametersDialog(project);
+    if (QtCameraParametersDialog *dialog = m_cameraParametersDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project && project->globalCamera()) {
+        auto *dialog = new QtCameraParametersDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_cameraParametersDialog = dialog;
+        dialog->show();
+    }
 }
 
 void

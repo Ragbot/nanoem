@@ -19,7 +19,9 @@ class QtApplicationService;
 class QtAccessoryOutsideParentDialog;
 class QtBoneBiasDialog;
 class QtBoneCorrectionDialog;
+class QtBoneParametersDialog;
 class QtCameraCorrectionDialog;
+class QtCameraParametersDialog;
 class QtModelDrawOrderDialog;
 class QtModelEdgeDialog;
 class QtModelOutsideParentDialog;
@@ -121,6 +123,8 @@ private:
     QPointer<QtPhysicsEngineDialog> m_physicsEngineDialog;
     QPointer<QtPreferenceDialog> m_preferenceDialog;
     QPointer<QtScaleAllSelectedKeyframesDialog> m_scaleAllSelectedKeyframesDialog;
+    QPointer<QtBoneParametersDialog> m_boneParametersDialog;
+    QPointer<QtCameraParametersDialog> m_cameraParametersDialog;
 };
 
 } /* namespace qt */
