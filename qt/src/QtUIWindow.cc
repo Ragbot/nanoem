@@ -16,6 +16,7 @@
 #include "QtModelTransformOrderDialog.h"
 #include "QtMorphCorrectionDialog.h"
 #include "QtPhysicsEngineDialog.h"
+#include "QtScaleAllSelectedKeyframesDialog.h"
 #include "QtSelfShadowDialog.h"
 #include "QtViewportSettingDialog.h"
 
@@ -68,6 +69,9 @@ QtUIWindow::closeNativeDialogs()
         dialog->close();
     }
     if (QtPhysicsEngineDialog *dialog = m_physicsEngineDialog.data()) {
+        dialog->close();
+    }
+    if (QtScaleAllSelectedKeyframesDialog *dialog = m_scaleAllSelectedKeyframesDialog.data()) {
         dialog->close();
     }
 }
@@ -385,7 +389,18 @@ QtUIWindow::openModelEdgeDialog(Project *project)
 void
 QtUIWindow::openScaleAllSelectedKeyframesDialog()
 {
-    m_impl->openScaleAllSelectedKeyframesDialog();
+    if (QtScaleAllSelectedKeyframesDialog *dialog = m_scaleAllSelectedKeyframesDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    /* the ImGui dialog is opened from the timeline keyframe action panel without a Project */
+    if (Project *project = m_service->projectHolder()->currentProject()) {
+        auto *dialog = new QtScaleAllSelectedKeyframesDialog(m_service, project, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_scaleAllSelectedKeyframesDialog = dialog;
+        dialog->show();
+    }
 }
 
 void

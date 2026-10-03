@@ -181,6 +181,9 @@ runMain(int argc, char *argv[])
                                     service.openPhysicsEngineDialog(project);
                                 }
                             }
+                            else if (name == "scale-all-keyframes") {
+                                service.openScaleAllSelectedKeyframesDialog();
+                            }
                             else if (name == "draw-order") {
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenDrawOrderDialog;

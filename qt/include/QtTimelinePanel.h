@@ -52,6 +52,7 @@ private:
     void connectSeekerSignals();
     void connectUndoSignals();
     void connectKeyframeActionSignals();
+    void connectSelectionSegmentSignals();
     void refresh();
 
     QtApplicationService *m_service;
@@ -69,6 +70,9 @@ private:
     QPushButton *m_symmetricPasteButton;
     QPushButton *m_selectColumnButton;
     QPushButton *m_removeButton;
+    QSpinBox *m_selectionFromSpinBox;
+    QSpinBox *m_selectionToSpinBox;
+    QPushButton *m_scaleKeyframesButton;
     QTimer *m_timer;
     int m_lastCanCopyState = -1;
     int m_lastCanPasteState = -1;

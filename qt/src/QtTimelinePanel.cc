@@ -171,9 +171,24 @@ QtTimelinePanel::QtTimelinePanel(QtApplicationService *service, QWidget *parent)
     keyframeRow2->addWidget(m_selectColumnButton);
     keyframeRow2->addWidget(m_removeButton);
     layout->addLayout(keyframeRow2);
+    /* mirrors ImGuiWindow::drawKeyframeSelectionPanel: the selection segment range read/written
+       live through Project::setSelectionSegment, and the Scale button opening the (now native)
+       scale all selected keyframes dialog */
+    auto *selectionRow = new QHBoxLayout;
+    selectionRow->setSpacing(2);
+    m_selectionFromSpinBox = new QSpinBox(this);
+    m_selectionFromSpinBox->setRange(0, kFrameIndexMaximum);
+    m_selectionToSpinBox = new QSpinBox(this);
+    m_selectionToSpinBox->setRange(0, kFrameIndexMaximum);
+    selectionRow->addWidget(m_selectionFromSpinBox, 1);
+    selectionRow->addWidget(m_selectionToSpinBox, 1);
+    layout->addLayout(selectionRow);
+    m_scaleKeyframesButton = new QPushButton(translate(service, "nanoem.gui.keyframe.scale"), this);
+    layout->addWidget(m_scaleKeyframesButton);
     connectSeekerSignals();
     connectUndoSignals();
     connectKeyframeActionSignals();
+    connectSelectionSegmentSignals();
     m_timer = new QTimer(this);
     m_timer->setInterval(50);
     connect(m_timer, &QTimer::timeout, this, [this]() {
@@ -301,6 +316,36 @@ QtTimelinePanel::connectKeyframeActionSignals()
 }
 
 void
+QtTimelinePanel::connectSelectionSegmentSignals()
+{
+    connect(m_selectionFromSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+        if (Project *project = currentProject()) {
+            TimelineSegment segment(project->selectionSegment());
+            segment.m_from = nanoem_frame_index_t(value);
+            if (segment.m_from > segment.m_to) {
+                segment.m_from = segment.m_to;
+            }
+            project->setSelectionSegment(segment);
+        }
+    });
+    connect(m_selectionToSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+        if (Project *project = currentProject()) {
+            TimelineSegment segment(project->selectionSegment());
+            segment.m_to = nanoem_frame_index_t(value);
+            if (segment.m_to < segment.m_from) {
+                segment.m_to = segment.m_from;
+            }
+            if (segment.m_to > project->duration()) {
+                segment.m_to = project->duration();
+            }
+            project->setSelectionSegment(segment);
+        }
+    });
+    connect(m_scaleKeyframesButton, &QPushButton::clicked, this,
+        [this]() { m_service->openScaleAllSelectedKeyframesDialog(); });
+}
+
+void
 QtTimelinePanel::refresh()
 {
     Project *project = currentProject();
@@ -333,6 +378,22 @@ QtTimelinePanel::refresh()
     m_pasteButton->setEnabled(hasKeyframeCopied);
     m_symmetricPasteButton->setEnabled(hasKeyframeCopied);
     m_selectColumnButton->setEnabled(buttonEnabled);
+    {
+        /* mirrors ImGuiWindow::drawKeyframeSelectionPanel: the segment widgets write back through
+           Project::setSelectionSegment, so they must not clobber an in-progress edit */
+        const TimelineSegment segment(project->selectionSegment());
+        {
+            const QSignalBlocker blocker(m_selectionFromSpinBox);
+            m_selectionFromSpinBox->setValue(int(qMin(segment.m_from, nanoem_frame_index_t(kFrameIndexMaximum))));
+        }
+        {
+            const QSignalBlocker blocker(m_selectionToSpinBox);
+            m_selectionToSpinBox->setValue(int(qMin(segment.m_to, nanoem_frame_index_t(kFrameIndexMaximum))));
+        }
+        m_selectionFromSpinBox->setEnabled(buttonEnabled);
+        m_selectionToSpinBox->setEnabled(buttonEnabled);
+        m_scaleKeyframesButton->setEnabled(buttonEnabled);
+    }
     /* ImGuiWindow published these through lazy commands; with the timeline gated the menus only
        get their copy/paste state from here */
     if (m_lastCanCopyState != (hasKeyframeSelection ? 1 : 0)) {

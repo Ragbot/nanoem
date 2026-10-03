@@ -325,6 +325,7 @@ public:
     void openViewportDialog(Project *project);
     void openModelEdgeDialog(Project *project);
     void openPhysicsEngineDialog(Project *project);
+    void openScaleAllSelectedKeyframesDialog();
 
 protected:
     virtual void sendEventMessage(const Nanoem__Application__Event *event) = 0;

@@ -5347,6 +5347,14 @@ BaseApplicationService::openPhysicsEngineDialog(Project *project)
     }
 }
 
+void
+BaseApplicationService::openScaleAllSelectedKeyframesDialog()
+{
+    if (m_window) {
+        m_window->openScaleAllSelectedKeyframesDialog();
+    }
+}
+
 IModalDialog *
 BaseApplicationService::handleSaveOnNewProject(void *userData, Project * /* project */)
 {
