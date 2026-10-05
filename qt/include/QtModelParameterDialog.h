@@ -11,7 +11,9 @@
 #include "emapp/Forward.h"
 #include "emapp/IModelObjectSelection.h"
 #include "emapp/Project.h"
+#include "emapp/command/ModelObjectCommand.h"
 #include "emapp/internal/ModelEditingState.h"
+#include "emapp/model/Vertex.h"
 
 #include <QDialog>
 #include <QList>
@@ -21,13 +23,18 @@ class QDoubleSpinBox;
 class QGridLayout;
 class QLabel;
 class QLineEdit;
+class QListWidget;
+class QListWidgetItem;
 class QPlainTextEdit;
 class QPushButton;
 class QRadioButton;
+class QSlider;
 class QSpinBox;
 class QStackedWidget;
 class QTabWidget;
 class QTimer;
+class QToolButton;
+class QVBoxLayout;
 class QWidget;
 
 namespace nanoem {
@@ -84,10 +91,32 @@ private:
     QWidget *createMeasureTab();
     QWidget *createSystemTab();
     QWidget *createUnportedTab();
+    QWidget *createVertexTab();
+    QWidget *createFaceTab();
     QWidget *createHeightBasedTransformPane(QWidget *parent);
     QWidget *createNumericInputTransformPane(QWidget *parent);
     void appendCountRow(QGridLayout *layout, nanoem_rsize_t row, const char *key);
     void rebuildMeasureCounts();
+    void syncVertexTab();
+    void syncFaceTab();
+    void rebuildVertexList();
+    void rebuildVertexDetail();
+    void rebuildFaceList();
+    void rebuildFaceDetail();
+    void updateSortedSelectedVertices(const IModelObjectSelection *selection);
+    void vertexSelectionChanged();
+    void vertexItemChanged(QListWidgetItem *item);
+    void faceSelectionChanged();
+    void faceItemChanged(QListWidgetItem *item);
+    void appendVertexBoneWeightRows(
+        QVBoxLayout *layout, QWidget *parent, nanoem_rsize_t numItems, nanoem_model_vertex_t *vertexPtr);
+    void appendBatchVertexBoneWeightRows(QVBoxLayout *layout, QWidget *parent, nanoem_rsize_t numItems);
+    void appendVertexPropertyPane(QVBoxLayout *layout, QWidget *parent, nanoem_model_vertex_t *vertexPtr);
+    void appendBatchVertexPropertyPane(QVBoxLayout *layout, QWidget *parent);
+    void appendFacePropertyPane(QVBoxLayout *layout, QWidget *parent, const Vector3UI32 &face);
+    void toggleBone(const nanoem_model_bone_t *bonePtr);
+    void toggleMaterial(const nanoem_model_material_t *materialPtr);
+    void toggleVertex(const nanoem_model_vertex_t *vertexPtr);
     void toggleTab(int index);
     void syncWithProject();
     void updateWindowTitle();
@@ -137,6 +166,28 @@ private:
     QPlainTextEdit *m_commentEdit;
     QSpinBox *m_additionalUVSpinBox;
     QTimer *m_timer;
+    nanoem_rsize_t m_vertexIndex;
+    nanoem_rsize_t m_faceIndex;
+    nanoem_rsize_t m_boneIndex;
+    nanoem_rsize_t m_materialIndex;
+    nanoem_rsize_t m_vertexCandidateUVAIndex;
+    nanoem_rsize_t m_sortedSelectedVertexIndex;
+    model::Vertex::List m_sortedSelectedVertices;
+    command::BatchChangeAllVertexObjectsCommand::Parameter m_batchVertexParameter;
+    int m_vertexDetailKind;
+    int m_faceDetailKind;
+    nanoem_rsize_t m_vertexDetailIndex;
+    nanoem_rsize_t m_vertexDetailCount;
+    nanoem_rsize_t m_faceDetailIndex;
+    nanoem_rsize_t m_faceDetailCount;
+    QLabel *m_vertexCountLabel;
+    QListWidget *m_vertexList;
+    QWidget *m_vertexDetail;
+    QWidget *m_vertexDetailChild;
+    QLabel *m_faceCountLabel;
+    QListWidget *m_faceList;
+    QWidget *m_faceDetail;
+    QWidget *m_faceDetailChild;
 };
 
 } /* namespace qt */

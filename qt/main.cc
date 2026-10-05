@@ -164,6 +164,8 @@ runMain(int argc, char *argv[])
                         int dialogTabIndex = -1;
                         /* list based dialogs record which row of the current page's list to select */
                         int dialogListRow = -1;
+                        /* ... or that every row should be selected, for the batch panes */
+                        bool dialogListSelectAll = false;
                         bool enableParameterInspection = false;
                         /* dialogs that are still ImGui windows have no QWidget to grab: their
                            captures re-grab the main window, whose GL viewport composites them */
@@ -329,14 +331,31 @@ runMain(int argc, char *argv[])
                                 }
                                 captureMainWindow = true;
                             }
-                            else if (name == "model-parameter-native" || name == "model-parameter-native-system") {
+                            else if (name.startsWith("model-parameter-native")) {
                                 /* QtUIWindow still forwards to the ImGui dialog until the remaining
                                    tabs are ported, so the native one is opened directly here */
                                 if (nanoem::Project *project = service.projectHolder()->currentProject()) {
                                     auto *dialog = new qt::QtModelParameterDialog(
                                         &service, project, service.modalDialogParentWidget());
                                     dialog->show();
-                                    dialogTabIndex = name == QStringLiteral("model-parameter-native-system") ? 1 : 0;
+                                    if (name == "model-parameter-native-system") {
+                                        dialogTabIndex = 1;
+                                    }
+                                    else if (name == "model-parameter-native-vertex") {
+                                        dialogTabIndex = 2;
+                                        dialogListRow = 0;
+                                    }
+                                    else if (name == "model-parameter-native-vertex-batch") {
+                                        dialogTabIndex = 2;
+                                        dialogListSelectAll = true;
+                                    }
+                                    else if (name == "model-parameter-native-face") {
+                                        dialogTabIndex = 3;
+                                        dialogListRow = 0;
+                                    }
+                                    else {
+                                        dialogTabIndex = 0;
+                                    }
                                 }
                             }
                             if (menuItemType != 0) {
@@ -380,22 +399,27 @@ runMain(int argc, char *argv[])
                                 }
                             }
                         }
-                        QTimer::singleShot(
-                            300, qApp, [&window, dialogPath, dialogTabIndex, dialogListRow, captureMainWindow]() {
+                        QTimer::singleShot(300, qApp,
+                            [&window, dialogPath, dialogTabIndex, dialogListRow, dialogListSelectAll,
+                                captureMainWindow]() {
                                 bool captured = false;
                                 const QWidgetList tops = QApplication::topLevelWidgets();
                                 for (QWidget *it : tops) {
                                     if (it != &window && it->isVisible() && it->isWindow()) {
-                                        if (dialogTabIndex >= 0) {
-                                            if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
+                                        if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
+                                            if (dialogTabIndex >= 0) {
                                                 tabs->setCurrentIndex(dialogTabIndex);
                                             }
-                                        }
-                                        if (dialogListRow >= 0) {
-                                            if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
-                                                if (QWidget *page = tabs->currentWidget()) {
+                                            if (QWidget *page = tabs->currentWidget()) {
+                                                if (dialogListRow >= 0 || dialogListSelectAll) {
                                                     if (QListWidget *list = page->findChild<QListWidget *>()) {
-                                                        list->setCurrentRow(dialogListRow);
+                                                        if (dialogListSelectAll) {
+                                                            list->selectAll();
+                                                        }
+                                                        else if (QListWidgetItem *item = list->item(dialogListRow)) {
+                                                            list->setCurrentRow(dialogListRow);
+                                                            item->setSelected(true);
+                                                        }
                                                     }
                                                 }
                                             }
