@@ -102,7 +102,7 @@ runMain(int argc, char *argv[])
                 /* the screenshot mode is a non-interactive test harness: grab the window after
                    the app has settled and force-exit, otherwise the dirty project confirmation
                    dialog (Save/Discard/Cancel) would block waiting for user input */
-                QTimer::singleShot(4000, &window, [&window, &service, screenshotPath, screenshotDialog]() {
+                QTimer::singleShot(4000, &window, [&window, &service, &client, screenshotPath, screenshotDialog]() {
                     /* the offscreen platform never re-invokes paintGL on its own, so render the GL
                        frame on demand: this runs drawDefaultPass and populates
                        Project::logicalScaleUniformedViewportLayoutRect, which the viewport HUD
@@ -111,7 +111,7 @@ runMain(int argc, char *argv[])
                         gl->grabFramebuffer();
                     }
                     /* let the overlay repaint with the freshly populated layout rect */
-                    QTimer::singleShot(500, &window, [&window, &service, screenshotPath, screenshotDialog]() {
+                    QTimer::singleShot(500, &window, [&window, &service, &client, screenshotPath, screenshotDialog]() {
                         if (!screenshotPath.isEmpty()) {
                             /* window.grab() only rasterizes native Qt widgets; the offscreen platform
                                never composites the QOpenGLWidget FBO, so read the rendered 3D frame
@@ -193,6 +193,12 @@ runMain(int argc, char *argv[])
                             }
                             else if (name == "scale-all-keyframes") {
                                 service.openScaleAllSelectedKeyframesDialog();
+                            }
+                            else if (name == "save-project") {
+                                /* File ▸ Save on a project that has never been saved sends the
+                                   SAVE_PROJECT command, which lands in
+                                   QtUIWindow::openSaveProjectDialog */
+                                client.sendSaveProjectMessage();
                             }
                             else if (name == "preference" || name == "preference-project" ||
                                 name == "preference-special") {

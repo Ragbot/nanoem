@@ -24,6 +24,8 @@
 #include "QtSelfShadowDialog.h"
 #include "QtViewportSettingDialog.h"
 
+#include "emapp/IEventPublisher.h"
+#include "emapp/IFileManager.h"
 #include "emapp/IProjectHolder.h"
 #include "emapp/Model.h"
 #include "emapp/Project.h"
@@ -502,9 +504,15 @@ QtUIWindow::openMotionIOPluginDialog(Project *project, plugin::MotionIOPlugin *p
 }
 
 void
-QtUIWindow::openSaveProjectDialog(Project *project)
+QtUIWindow::openSaveProjectDialog(Project * /* project */)
 {
-    m_impl->openSaveProjectDialog(project);
+    /* ImGuiWindow::openSaveProjectDialog forwards to the ImGui menu builder, which the Qt shell
+       never creates (menubarApplicationClient() is null), so saving an unnamed project used to be
+       a silent no-op here. Publish the same query the File menu's Save/Save As use instead: the
+       Qt menu builder's file dialog listener runs QFileDialog and replies with
+       sendSaveFileMessage, which lands in the SAVE_FILE command and persists the project. */
+    m_service->eventPublisher()->publishQuerySaveFileDialogEvent(
+        IFileManager::kDialogTypeSaveProjectFile, Project::loadableExtensions());
 }
 
 void
