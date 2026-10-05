@@ -685,7 +685,6 @@ EnableModelEditingCommand::~EnableModelEditingCommand() NANOEM_DECL_NOEXCEPT
 void
 EnableModelEditingCommand::execute(Project *project)
 {
-    project->setModelEditingEnabled(true);
     m_parent->saveProjectState(project);
 }
 
@@ -696,10 +695,6 @@ EnableModelEditingCommand::destroy(Project *project)
 }
 
 struct DisableModelEditingCommand : ImGuiWindow::ILazyExecutionCommand {
-    static void saveLastModel(
-        const Model *activeModel, const ModelParameterDialog::SavedState::ModelState &state, Error &error);
-    static void saveCurrentModel(const Model *activeModel, Error &error);
-
     DisableModelEditingCommand(ModelParameterDialog::SavedState *state);
     ~DisableModelEditingCommand() NANOEM_DECL_NOEXCEPT;
 
@@ -709,52 +704,6 @@ struct DisableModelEditingCommand : ImGuiWindow::ILazyExecutionCommand {
     Model *m_activeModel;
     ModelParameterDialog::SavedState *m_state;
 };
-
-void
-DisableModelEditingCommand::saveLastModel(
-    const Model *activeModel, const ModelParameterDialog::SavedState::ModelState &state, Error &error)
-{
-    String filePath(activeModel->fileURI().absolutePathByDeletingPathExtension());
-    filePath.append("-");
-    filePath.append(state.m_datetime);
-    filePath.append(
-        nanoemModelGetFormatType(activeModel->data()) == NANOEM_MODEL_FORMAT_TYPE_PMD_1_0 ? ".pmd" : ".pmx");
-#if !defined(NANOEM_ENABLE_DEBUG_LABEL)
-    FileWriterScope scope;
-    if (scope.open(URI::createFromFilePath(filePath), error)) {
-        FileUtils::write(scope.writer(), state.m_modelData, error);
-        if (!error.hasReason()) {
-            scope.commit(error);
-        }
-        else {
-            scope.rollback(error);
-        }
-    }
-#else
-    BX_UNUSED_1(error);
-    EMLOG_INFO("DisableModelEditingCommand::saveLastModel(path=%s)", filePath.c_str());
-#endif /* NANOEM_ENABLE_DEBUG_LABEL */
-}
-
-void
-DisableModelEditingCommand::saveCurrentModel(const Model *activeModel, Error &error)
-{
-#if !defined(NANOEM_ENABLE_DEBUG_LABEL)
-    FileWriterScope scope;
-    if (scope.open(activeModel->fileURI(), error)) {
-        if (activeModel->save(scope.writer(), error)) {
-            scope.commit(error);
-        }
-        else {
-            scope.rollback(error);
-        }
-    }
-#else
-    BX_UNUSED_1(error);
-    EMLOG_INFO(
-        "DisableModelEditingCommand::saveCurrentModel(path={})", activeModel->fileURI().absolutePathConstString());
-#endif /* NANOEM_ENABLE_DEBUG_LABEL */
-}
 
 DisableModelEditingCommand::DisableModelEditingCommand(ModelParameterDialog::SavedState *state)
     : m_state(state)
@@ -769,38 +718,8 @@ DisableModelEditingCommand::~DisableModelEditingCommand() NANOEM_DECL_NOEXCEPT
 void
 DisableModelEditingCommand::execute(Project *project)
 {
-    const Project::DrawableList *drawables = project->drawableOrderList();
     Error error;
-    for (ModelParameterDialog::SavedState::ModelStateMap::const_iterator it = m_state->m_modelStates.begin(),
-                                                                         end = m_state->m_modelStates.end();
-         it != end; ++it) {
-        const ModelParameterDialog::SavedState::ModelState &state = it->second;
-        Model *model = it->first;
-        if (const nanoem_model_bone_t *activeBonePtr = model->findBone(state.m_activeBoneName)) {
-            model->setActiveBone(activeBonePtr);
-        }
-        if (const nanoem_model_morph_t *activeMorphPtr = model->findMorph(state.m_activeMorphName)) {
-            model->setActiveMorph(activeMorphPtr);
-        }
-        saveLastModel(model, state, error);
-        if (Motion *motion = project->resolveMotion(model)) {
-            motion->load(state.m_motionData, 0, error);
-        }
-    }
-    Model *activeModel = m_state->m_activeModel;
-    for (Project::DrawableList::const_iterator it = drawables->begin(), end = drawables->end(); it != end; ++it) {
-        IDrawable *drawable = *it;
-        if (drawable != activeModel) {
-            drawable->setVisible(true);
-        }
-    }
-    activeModel->restoreBindPose(m_state->m_bindPose);
-    project->restoreState(m_state->m_state, true);
-    project->destroyState(m_state->m_state);
-    project->rebuildAllTracks();
-    project->setEditingMode(m_state->m_lastEditingMode);
-    project->setModelEditingEnabled(false);
-    saveCurrentModel(activeModel, error);
+    internal::disableModelEditing(&m_state, project, error);
     error.notify(project->eventPublisher());
 }
 
@@ -1067,15 +986,7 @@ ModelParameterDialog::destroy(Project *project)
 {
     if (m_savedState) {
         Error error;
-        ModelParameterDialog::SavedState::ModelStateMap &states = m_savedState->m_modelStates;
-        for (ModelParameterDialog::SavedState::ModelStateMap::const_iterator it = states.begin(), end = states.end();
-             it != end; ++it) {
-            const ModelParameterDialog::SavedState::ModelState &state = it->second;
-            Model *model = it->first;
-            DisableModelEditingCommand::saveLastModel(model, state, error);
-        }
-        DisableModelEditingCommand::saveCurrentModel(m_activeModel, error);
-        project->destroyState(m_savedState->m_state);
+        internal::destroyModelEditingState(m_savedState, m_activeModel, project, error);
         error.notify(project->eventPublisher());
     }
 }
@@ -7506,51 +7417,8 @@ ModelParameterDialog::forceUpdateMorph(model::Morph *morph, Project *project)
 void
 ModelParameterDialog::setActiveModel(Model *model, Project *project)
 {
-    const Project::DrawableList *drawables = project->drawableOrderList();
-    for (Project::DrawableList::const_iterator it = drawables->begin(), end = drawables->end(); it != end; ++it) {
-        IDrawable *drawable = *it;
-        drawable->setVisible(false);
-    }
     Error error;
-    if (Motion *motion = project->resolveMotion(model)) {
-        SavedState::ModelStateMap::const_iterator it = m_savedState->m_modelStates.find(model);
-        if (it == m_savedState->m_modelStates.end()) {
-            SavedState::ModelState state;
-            const URI modelFileURI(model->fileURI());
-            FileReaderScope scope(project->translator());
-            if (scope.open(modelFileURI, error)) {
-                FileUtils::read(scope, state.m_modelData, error);
-                if (error.hasReason()) {
-                    error = Error();
-                    model->save(state.m_modelData, error);
-                }
-            }
-            if (!error.hasReason() &&
-                motion->save(state.m_motionData, model, NANOEM_MUTABLE_MOTION_KEYFRAME_TYPE_ALL, error)) {
-                motion->clearAllKeyframes();
-                if (const model::Bone *activeBone = model::Bone::cast(model->activeBone())) {
-                    state.m_activeBoneName = activeBone->name();
-                }
-                if (const model::Morph *activeMorph = model::Morph::cast(model->activeMorph())) {
-                    state.m_activeMorphName = activeMorph->name();
-                }
-                StringUtils::formatDateTimeLocal(state.m_datetime, sizeof(state.m_datetime), "%Y%m%d_%H%M%S");
-                m_savedState->m_modelStates.insert(tinystl::make_pair(model, state));
-            }
-        }
-    }
-    model->selection()->clearAll();
-    model->setActiveBone(nullptr);
-    model->setActiveMorph(nullptr);
-    model->setVisible(true);
-    model->resetAllBoneTransforms();
-    model->resetAllMaterials();
-    model->resetAllMorphs();
-    model->resetAllVertices();
-    model->performAllBonesTransform();
-    model->updateStagingVertexBuffer();
-    project->activeCamera()->reset();
-    project->activeLight()->reset();
+    internal::captureModelState(m_savedState, model, project, error);
     error.addModalDialog(application());
 }
 
@@ -7630,13 +7498,9 @@ ModelParameterDialog::drawMenuBar(Project *project)
 void
 ModelParameterDialog::saveProjectState(Project *project)
 {
-    m_savedState->m_activeModel = m_activeModel;
-    project->saveState(m_savedState->m_state);
-    project->activeCamera()->reset();
-    project->activeLight()->reset();
-    project->grid()->setVisible(true);
-    project->setPhysicsSimulationMode(PhysicsEngine::kSimulationModeDisable);
-    setActiveModel(m_activeModel, project);
+    Error error;
+    internal::enableModelEditing(m_savedState, m_activeModel, project, error);
+    error.addModalDialog(application());
 }
 
 bool

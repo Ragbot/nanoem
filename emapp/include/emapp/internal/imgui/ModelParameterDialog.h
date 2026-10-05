@@ -13,6 +13,7 @@
 #include "emapp/IModelObjectSelection.h"
 #include "emapp/StringUtils.h"
 #include "emapp/command/ModelObjectCommand.h"
+#include "emapp/internal/ModelEditingState.h"
 
 namespace nanoem {
 namespace internal {
@@ -20,27 +21,11 @@ namespace imgui {
 
 class ModelParameterDialog : public BaseNonModalDialogWindow {
 public:
-    struct SavedState {
-        struct ModelState {
-            String m_activeBoneName;
-            String m_activeMorphName;
-            ByteArray m_modelData;
-            ByteArray m_motionData;
-            char m_datetime[32];
-        };
-        SavedState(Project::EditingMode editingMode)
-            : m_activeModel(nullptr)
-            , m_state(nullptr)
-            , m_lastEditingMode(editingMode)
-        {
-        }
-        typedef tinystl::unordered_map<Model *, ModelState, TinySTLAllocator> ModelStateMap;
-        Model *m_activeModel;
-        Project::SaveState *m_state;
-        Project::EditingMode m_lastEditingMode;
-        ModelStateMap m_modelStates;
-        model::BindPose m_bindPose;
-    };
+    /**
+     * @brief The editing session this dialog owns; the lifecycle itself is shared with native
+     *        shells through internal::ModelEditingState.
+     */
+    typedef ModelEditingState SavedState;
 
     static const char *const kIdentifier;
     static const nanoem_f32_t kMinimumWindowWidth;
