@@ -14,6 +14,7 @@
 #include "QtCameraParametersDialog.h"
 #include "QtEffectParameterDialog.h"
 #include "QtIOPluginDialog.h"
+#include "QtInterpolationCurveGraphDialog.h"
 #include "QtModelDrawOrderDialog.h"
 #include "QtModelEdgeDialog.h"
 #include "QtModelOutsideParentDialog.h"
@@ -96,6 +97,12 @@ QtUIWindow::closeNativeDialogs()
     if (QtEffectParameterDialog *dialog = m_effectParameterDialog.data()) {
         dialog->close();
     }
+    if (QtInterpolationCurveGraphDialog *dialog = m_boneCurveGraphDialog.data()) {
+        dialog->close();
+    }
+    if (QtInterpolationCurveGraphDialog *dialog = m_cameraCurveGraphDialog.data()) {
+        dialog->close();
+    }
     for (QList<QPointer<QtIOPluginDialog>>::iterator it = m_ioPluginDialogs.begin();
          it != m_ioPluginDialogs.end(); ++it) {
         if (QtIOPluginDialog *dialog = it->data()) {
@@ -144,15 +151,38 @@ QtUIWindow::openAccessoryOutsideParentDialog(Project *project)
 }
 
 void
-QtUIWindow::openBoneKeyframeBezierInterpolationCurveGraphDialog(Project *value)
+QtUIWindow::openBoneKeyframeBezierInterpolationCurveGraphDialog(Project *project)
 {
-    m_impl->openBoneKeyframeBezierInterpolationCurveGraphDialog(value);
+    openCurveGraphDialog(project, true);
 }
 
 void
-QtUIWindow::openCameraKeyframeBezierInterpolationCurveGraphDialog(Project *value)
+QtUIWindow::openCameraKeyframeBezierInterpolationCurveGraphDialog(Project *project)
 {
-    m_impl->openCameraKeyframeBezierInterpolationCurveGraphDialog(value);
+    openCurveGraphDialog(project, false);
+}
+
+void
+QtUIWindow::openCurveGraphDialog(Project *project, bool boneVariant)
+{
+    /* ImGuiWindow drew these over the GL viewport from its interpolation panels, which the Qt
+       shell masks out: QtInterpolationPanel owns the dialog it opens itself, so this only serves
+       the service level entry points (BaseApplicationService::open*KeyframeBezierInterpolation-
+       CurveGraphDialog), which used to fall back to the ImGui renderer. The bone variant needs an
+       active model the way the ImGui one did. */
+    if (boneVariant && !project->activeModel()) {
+        return;
+    }
+    QPointer<QtInterpolationCurveGraphDialog> &dialog =
+        boneVariant ? m_boneCurveGraphDialog : m_cameraCurveGraphDialog;
+    if (dialog && dialog->isVisible()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    dialog = new QtInterpolationCurveGraphDialog(
+        m_service, project, boneVariant, m_service->modalDialogParentWidget());
+    dialog->show();
 }
 
 void

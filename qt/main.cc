@@ -228,6 +228,19 @@ runMain(int argc, char *argv[])
                                     }
                                 }
                             }
+                            else if (name == "curve-graph" || name == "curve-graph-camera") {
+                                /* service level entry point for the interpolation curve graph:
+                                   the ImGui shell drew it over the GL viewport from its
+                                   (masked out) interpolation panel */
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    if (name == QStringLiteral("curve-graph")) {
+                                        service.openBoneKeyframeBezierInterpolationCurveGraphDialog(project);
+                                    }
+                                    else {
+                                        service.openCameraKeyframeBezierInterpolationCurveGraphDialog(project);
+                                    }
+                                }
+                            }
                             else if (name == "preference" || name == "preference-project" ||
                                 name == "preference-special") {
                                 menuItemType = nanoem::ApplicationMenuBuilder::kMenuItemTypeEditPreference;

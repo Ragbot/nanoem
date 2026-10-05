@@ -25,6 +25,7 @@ class QtCameraCorrectionDialog;
 class QtCameraParametersDialog;
 class QtEffectParameterDialog;
 class QtIOPluginDialog;
+class QtInterpolationCurveGraphDialog;
 class QtModelDrawOrderDialog;
 class QtModelEdgeDialog;
 class QtModelOutsideParentDialog;
@@ -110,6 +111,7 @@ public:
 
 private:
     void closeNativeDialogs();
+    void openCurveGraphDialog(Project *project, bool boneVariant);
     bool openIOPluginDialog(Project *project, plugin::ModelIOPlugin *modelPlugin,
         plugin::MotionIOPlugin *motionPlugin, const ByteArray &input, const ByteArray &layout, int functionIndex);
 
@@ -132,6 +134,8 @@ private:
     QPointer<QtBoneParametersDialog> m_boneParametersDialog;
     QPointer<QtCameraParametersDialog> m_cameraParametersDialog;
     QPointer<QtEffectParameterDialog> m_effectParameterDialog;
+    QPointer<QtInterpolationCurveGraphDialog> m_boneCurveGraphDialog;
+    QPointer<QtInterpolationCurveGraphDialog> m_cameraCurveGraphDialog;
     QList<QPointer<QtIOPluginDialog>> m_ioPluginDialogs;
 };
 
