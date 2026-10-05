@@ -8,6 +8,7 @@
 #define NANOEM_EMAPP_INTERNAL_MODELEDITINGSTATE_H_
 
 #include "emapp/Forward.h"
+#include "emapp/IModelObjectSelection.h"
 #include "emapp/Model.h"
 #include "emapp/Project.h"
 #include "emapp/model/BindPose.h"
@@ -64,6 +65,15 @@ void disableModelEditing(ModelEditingState **state, Project *project, Error &err
  *        rest: what happens when the dialog goes away without running the disable path.
  */
 void destroyModelEditingState(ModelEditingState *state, Model *activeModel, Project *project, Error &error);
+/**
+ * @brief Takes the overlays the tab being left showed away, then applies the ones `editingType`
+ *        needs. This runs whenever the dialog's tab bar changes (and whenever the edit panel
+ *        picks another object type), so the model shows what the current tab edits.
+ */
+void beforeToggleModelEditingMode(
+    IModelObjectSelection::ObjectType editingType, Model *activeModel, Project *project);
+void afterToggleModelEditingMode(
+    IModelObjectSelection::ObjectType editingType, Model *activeModel, Project *project);
 
 } /* namespace internal */
 } /* namespace nanoem */
