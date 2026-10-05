@@ -12,6 +12,7 @@
 namespace nanoem {
 
 class Accessory;
+class IDrawable;
 class Model;
 class IModalDialog;
 class IPrimitive2D;
@@ -121,6 +122,17 @@ public:
     virtual bool openMotionIOPluginDialog(Project *project, plugin::MotionIOPlugin *plugin, const ByteArray &input,
         const ByteArray &layout, int functionIndex) = 0;
     virtual void openSaveProjectDialog(Project *project) = 0;
+
+    /**
+     * @brief Queues a reload of `value`'s active effect (used by the effect parameter dialog's
+     *        reload button).
+     *
+     *        Shells without a lazy execution queue get the default no-op.
+     */
+    virtual void reloadActiveEffect(IDrawable *value)
+    {
+        (void)value;
+    }
 
     virtual void resizeDevicePixelWindowSize(const Vector2UI16 &value) = 0;
     virtual void setDevicePixelRatio(float value) = 0;

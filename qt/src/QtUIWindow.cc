@@ -12,6 +12,7 @@
 #include "QtBoneParametersDialog.h"
 #include "QtCameraCorrectionDialog.h"
 #include "QtCameraParametersDialog.h"
+#include "QtEffectParameterDialog.h"
 #include "QtModelDrawOrderDialog.h"
 #include "QtModelEdgeDialog.h"
 #include "QtModelOutsideParentDialog.h"
@@ -85,6 +86,9 @@ QtUIWindow::closeNativeDialogs()
         dialog->close();
     }
     if (QtCameraParametersDialog *dialog = m_cameraParametersDialog.data()) {
+        dialog->close();
+    }
+    if (QtEffectParameterDialog *dialog = m_effectParameterDialog.data()) {
         dialog->close();
     }
 }
@@ -440,7 +444,23 @@ QtUIWindow::openScaleAllSelectedKeyframesDialog()
 void
 QtUIWindow::openEffectParameterDialog(Project *project)
 {
-    m_impl->openEffectParameterDialog(project);
+    if (QtEffectParameterDialog *dialog = m_effectParameterDialog.data()) {
+        dialog->raise();
+        dialog->activateWindow();
+        return;
+    }
+    if (project) {
+        auto *dialog = new QtEffectParameterDialog(m_service, project, this, m_service->modalDialogParentWidget());
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        m_effectParameterDialog = dialog;
+        dialog->show();
+    }
+}
+
+void
+QtUIWindow::reloadActiveEffect(IDrawable *value)
+{
+    m_impl->reloadActiveEffect(value);
 }
 
 void

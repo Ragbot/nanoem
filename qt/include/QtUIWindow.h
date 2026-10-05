@@ -22,6 +22,7 @@ class QtBoneCorrectionDialog;
 class QtBoneParametersDialog;
 class QtCameraCorrectionDialog;
 class QtCameraParametersDialog;
+class QtEffectParameterDialog;
 class QtModelDrawOrderDialog;
 class QtModelEdgeDialog;
 class QtModelOutsideParentDialog;
@@ -83,6 +84,7 @@ public:
     void openModelEdgeDialog(Project *project) override;
     void openScaleAllSelectedKeyframesDialog() override;
     void openEffectParameterDialog(Project *project) override;
+    void reloadActiveEffect(IDrawable *value) override;
     void openModelParameterDialog(Project *project, Error &error) override;
     void openPreferenceDialog() override;
     bool openModelIOPluginDialog(Project *project, plugin::ModelIOPlugin *plugin, const ByteArray &input,
@@ -125,6 +127,7 @@ private:
     QPointer<QtScaleAllSelectedKeyframesDialog> m_scaleAllSelectedKeyframesDialog;
     QPointer<QtBoneParametersDialog> m_boneParametersDialog;
     QPointer<QtCameraParametersDialog> m_cameraParametersDialog;
+    QPointer<QtEffectParameterDialog> m_effectParameterDialog;
 };
 
 } /* namespace qt */

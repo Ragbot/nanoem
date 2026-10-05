@@ -17,6 +17,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
+#include <QListWidget>
 #include <QOpenGLWidget>
 #include <QPainter>
 #include <QSurfaceFormat>
@@ -135,6 +136,12 @@ runMain(int argc, char *argv[])
                         const QString dialogPath = screenshotDialog.mid(separator + 1);
                         /* tabbed dialogs record which tab to switch to before the grab */
                         int dialogTabIndex = -1;
+                        /* list based dialogs record which row of the current page's list to select */
+                        int dialogListRow = -1;
+                        bool enableParameterInspection = false;
+                        /* the effect parameter dialog hides its Parameter tab unless the active
+                           model has an attached effect, so those captures attach a fixture first */
+                        bool attachEffect = false;
                         if (name == "self-shadow") {
                             service.openSelfShadowConfigurationDialog();
                         }
@@ -200,6 +207,33 @@ runMain(int argc, char *argv[])
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeEditCameraOpenParameterDialog;
                             }
+                            else if (name == "effect-parameter" || name == "effect-parameter-model" ||
+                                name == "effect-parameter-parameters" || name == "effect-parameter-option" ||
+                                name == "effect-parameter-uniform" || name == "effect-parameter-render-target") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeEditOpenEffectParameterWindow;
+                                attachEffect = true;
+                                if (name == "effect-parameter-model") {
+                                    dialogTabIndex = 1;
+                                }
+                                else if (name == "effect-parameter-option") {
+                                    dialogTabIndex = 0;
+                                    dialogListRow = 1;
+                                }
+                                else if (name == "effect-parameter-parameters") {
+                                    dialogTabIndex = 2;
+                                    dialogListRow = 0;
+                                }
+                                else if (name == "effect-parameter-uniform") {
+                                    dialogTabIndex = 2;
+                                    dialogListRow = 1;
+                                    enableParameterInspection = true;
+                                }
+                                else if (name == "effect-parameter-render-target") {
+                                    dialogTabIndex = 2;
+                                    dialogListRow = 4;
+                                }
+                            }
                             else if (name == "draw-order") {
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenDrawOrderDialog;
@@ -210,18 +244,61 @@ runMain(int argc, char *argv[])
                             }
                             if (menuItemType != 0) {
                                 if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    if (attachEffect) {
+                                        /* attach through the same chain the Offscreen tab's
+                                           "(None)" button uses: register the drawable then let
+                                           IFileManager load the effect source */
+                                        if (nanoem::Model *model = project->activeModel()) {
+                                            project->setEffectPluginEnabled(true);
+                                            const nanoem::String ownerName(
+                                                nanoem::Effect::kOffscreenOwnerNameMain);
+                                            project->clearAllDrawablesToAttachOffscreenRenderTargetEffect(ownerName);
+                                            project->addDrawableToAttachOffscreenRenderTargetEffect(ownerName, model);
+                                            const QString effectPath =
+                                                QCoreApplication::applicationDirPath() +
+                                                QStringLiteral("/../test/fixtures/effects/offscreen.fx");
+                                            const String effectPathString(effectPath.toUtf8().constData());
+                                            const nanoem::URI fxURI(nanoem::URI::createFromFilePath(effectPathString));
+                                            nanoem::Error effectError;
+                                            const bool loaded = project->fileManager()->loadFromFile(
+                                                fxURI, nanoem::IFileManager::kDialogTypeOpenEffectFile, project,
+                                                effectError);
+                                            fprintf(stderr,
+                                                "[screenshot] effect=%s loaded=%d found=%d handle=%d enabled=%d "
+                                                "err=%s\n",
+                                                project->resolveEffect(model) ? "attached" : "none",
+                                                int(loaded), int(project->findEffect(fxURI) != nullptr),
+                                                int(model->handle()), int(project->isEffectPluginEnabled()),
+                                                effectError.hasReason() ? effectError.reasonConstString()
+                                                                        : "no error");
+                                            if (enableParameterInspection) {
+                                                if (nanoem::Effect *attached = project->resolveEffect(model)) {
+                                                    attached->setPassUniformBufferInspectionEnabled(true);
+                                                }
+                                            }
+                                        }
+                                    }
                                     nanoem::Error error;
                                     service.dispatchMenuItemAction(project, menuItemType, error);
                                 }
                             }
                         }
-                        QTimer::singleShot(300, qApp, [&window, dialogPath, dialogTabIndex]() {
+                        QTimer::singleShot(300, qApp, [&window, dialogPath, dialogTabIndex, dialogListRow]() {
                             const QWidgetList tops = QApplication::topLevelWidgets();
                             for (QWidget *it : tops) {
                                 if (it != &window && it->isVisible() && it->isWindow()) {
                                     if (dialogTabIndex >= 0) {
                                         if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
                                             tabs->setCurrentIndex(dialogTabIndex);
+                                        }
+                                    }
+                                    if (dialogListRow >= 0) {
+                                        if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
+                                            if (QWidget *page = tabs->currentWidget()) {
+                                                if (QListWidget *list = page->findChild<QListWidget *>()) {
+                                                    list->setCurrentRow(dialogListRow);
+                                                }
+                                            }
                                         }
                                     }
                                     it->grab().toImage().save(dialogPath);
