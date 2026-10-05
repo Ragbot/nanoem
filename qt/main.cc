@@ -13,10 +13,12 @@
 #include "MainWindow.h"
 #include "QtApplicationClient.h"
 #include "QtApplicationService.h"
+#include "QtModelParameterDialog.h"
 
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QListWidget>
@@ -24,6 +26,7 @@
 #include <QPainter>
 #include <QSurfaceFormat>
 #include <QTabWidget>
+#include <QTemporaryDir>
 #include <QTimer>
 
 #include "bx/commandline.h"
@@ -32,6 +35,28 @@
 #include <cstdio>
 
 using namespace nanoem;
+
+/**
+ * @brief Saves the main window, compositing the GL viewport widget on top of it.
+ *
+ *        window.grab() only rasterizes native Qt widgets; the offscreen platform never
+ *        composites the QOpenGLWidget FBO, so read the rendered 3D frame directly and overlay
+ *        it at the viewport widget's position. This is what makes the viewport pixels (and
+ *        therefore the native present path, and anything ImGui draws into it) visible in
+ *        offscreen captures.
+ */
+static void
+grabMainWindow(qt::MainWindow &window, const QString &path)
+{
+    QOpenGLWidget *gl = window.findChild<QOpenGLWidget *>();
+    const QImage framebuffer(gl ? gl->grabFramebuffer() : QImage());
+    const QImage image(window.grab().toImage());
+    if (!framebuffer.isNull() && gl) {
+        QPainter painter(&image);
+        painter.drawImage(QRect(gl->mapTo(&window, QPoint(0, 0)), gl->size()), framebuffer);
+    }
+    image.save(path);
+}
 
 static int
 runMain(int argc, char *argv[])
@@ -88,6 +113,17 @@ runMain(int argc, char *argv[])
                 fileToLoad = QFileInfo(arg).absoluteFilePath();
             }
         }
+        /* the model parameter dialog writes the model file back when it closes (and keeps a
+           timestamped copy of the previous one beside it), so those entries edit a copy of the
+           fixture instead of the fixture itself */
+        QTemporaryDir fixtureCopyDir;
+        if (!fileToLoad.isEmpty() && screenshotDialog.startsWith(QStringLiteral("model-parameter")) &&
+            fixtureCopyDir.isValid()) {
+            const QString copyPath = fixtureCopyDir.filePath(QFileInfo(fileToLoad).fileName());
+            if (QFile::copy(fileToLoad, copyPath)) {
+                fileToLoad = copyPath;
+            }
+        }
         qt::QtApplicationClient::Bridge bridge;
         qt::QtApplicationClient client(&bridge);
         qt::QtApplicationService service(config, &bridge);
@@ -115,19 +151,7 @@ runMain(int argc, char *argv[])
                     /* let the overlay repaint with the freshly populated layout rect */
                     QTimer::singleShot(500, &window, [&window, &service, &client, screenshotPath, screenshotDialog]() {
                         if (!screenshotPath.isEmpty()) {
-                            /* window.grab() only rasterizes native Qt widgets; the offscreen platform
-                               never composites the QOpenGLWidget FBO, so read the rendered 3D frame
-                               directly and overlay it at the viewport widget's position. This is what
-                               makes the viewport pixels (and therefore the native present path)
-                               visible in offscreen captures. */
-                            QOpenGLWidget *gl = window.findChild<QOpenGLWidget *>();
-                            const QImage framebuffer(gl ? gl->grabFramebuffer() : QImage());
-                            const QImage image(window.grab().toImage());
-                            if (!framebuffer.isNull() && gl) {
-                                QPainter painter(&image);
-                                painter.drawImage(QRect(gl->mapTo(&window, QPoint(0, 0)), gl->size()), framebuffer);
-                            }
-                            image.save(screenshotPath);
+                            grabMainWindow(window, screenshotPath);
                         }
                         if (screenshotDialog.isEmpty()) {
                             QCoreApplication::exit(0);
@@ -141,6 +165,9 @@ runMain(int argc, char *argv[])
                         /* list based dialogs record which row of the current page's list to select */
                         int dialogListRow = -1;
                         bool enableParameterInspection = false;
+                        /* dialogs that are still ImGui windows have no QWidget to grab: their
+                           captures re-grab the main window, whose GL viewport composites them */
+                        bool captureMainWindow = false;
                         /* the effect parameter dialog hides its Parameter tab unless the active
                            model has an attached effect, so those captures attach a fixture first */
                         bool attachEffect = false;
@@ -289,6 +316,29 @@ runMain(int argc, char *argv[])
                                 menuItemType =
                                     nanoem::ApplicationMenuBuilder::kMenuItemTypeProjectOpenTransformOrderDialog;
                             }
+                            else if (name == "model-parameter") {
+                                menuItemType =
+                                    nanoem::ApplicationMenuBuilder::kMenuItemTypeEditOpenModelParameterWindow;
+                                /* the dialog refuses to open on a dirty project because closing it
+                                   writes the model file back, and loading a fixture model marks it
+                                   dirty: clear that the way saving the model would */
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    if (nanoem::Model *model = project->activeModel()) {
+                                        model->setDirty(false);
+                                    }
+                                }
+                                captureMainWindow = true;
+                            }
+                            else if (name == "model-parameter-native" || name == "model-parameter-native-system") {
+                                /* QtUIWindow still forwards to the ImGui dialog until the remaining
+                                   tabs are ported, so the native one is opened directly here */
+                                if (nanoem::Project *project = service.projectHolder()->currentProject()) {
+                                    auto *dialog = new qt::QtModelParameterDialog(
+                                        &service, project, service.modalDialogParentWidget());
+                                    dialog->show();
+                                    dialogTabIndex = name == QStringLiteral("model-parameter-native-system") ? 1 : 0;
+                                }
+                            }
                             if (menuItemType != 0) {
                                 if (nanoem::Project *project = service.projectHolder()->currentProject()) {
                                     if (attachEffect) {
@@ -330,30 +380,37 @@ runMain(int argc, char *argv[])
                                 }
                             }
                         }
-                        QTimer::singleShot(300, qApp, [&window, dialogPath, dialogTabIndex, dialogListRow]() {
-                            const QWidgetList tops = QApplication::topLevelWidgets();
-                            for (QWidget *it : tops) {
-                                if (it != &window && it->isVisible() && it->isWindow()) {
-                                    if (dialogTabIndex >= 0) {
-                                        if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
-                                            tabs->setCurrentIndex(dialogTabIndex);
+                        QTimer::singleShot(
+                            300, qApp, [&window, dialogPath, dialogTabIndex, dialogListRow, captureMainWindow]() {
+                                bool captured = false;
+                                const QWidgetList tops = QApplication::topLevelWidgets();
+                                for (QWidget *it : tops) {
+                                    if (it != &window && it->isVisible() && it->isWindow()) {
+                                        if (dialogTabIndex >= 0) {
+                                            if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
+                                                tabs->setCurrentIndex(dialogTabIndex);
+                                            }
                                         }
-                                    }
-                                    if (dialogListRow >= 0) {
-                                        if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
-                                            if (QWidget *page = tabs->currentWidget()) {
-                                                if (QListWidget *list = page->findChild<QListWidget *>()) {
-                                                    list->setCurrentRow(dialogListRow);
+                                        if (dialogListRow >= 0) {
+                                            if (QTabWidget *tabs = it->findChild<QTabWidget *>()) {
+                                                if (QWidget *page = tabs->currentWidget()) {
+                                                    if (QListWidget *list = page->findChild<QListWidget *>()) {
+                                                        list->setCurrentRow(dialogListRow);
+                                                    }
                                                 }
                                             }
                                         }
+                                        captured = it->grab().toImage().save(dialogPath);
+                                        break;
                                     }
-                                    it->grab().toImage().save(dialogPath);
-                                    break;
                                 }
-                            }
-                            QCoreApplication::exit(0);
-                        });
+                                if (!captured && captureMainWindow) {
+                                    /* no dialog widget: the dialog is still an ImGui window, so
+                                       grab the main window whose viewport it draws into */
+                                    grabMainWindow(window, dialogPath);
+                                }
+                                QCoreApplication::exit(0);
+                            });
                     });
                 });
             }

@@ -24,6 +24,7 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelDrawOrderDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelEdgeDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelOutsideParentDialog.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelParameterDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtModelTransformOrderDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtMorphCorrectionDialog.cc
