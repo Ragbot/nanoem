@@ -7,6 +7,8 @@
 #include "emapp/Allocator.h"
 #include "emapp/BaseApplicationService.h"
 #include "emapp/emapp.h"
+#include "emapp/plugin/ModelIOPlugin.h"
+#include "emapp/plugin/MotionIOPlugin.h"
 
 #include "MainWindow.h"
 #include "QtApplicationClient.h"
@@ -199,6 +201,32 @@ runMain(int argc, char *argv[])
                                    SAVE_PROJECT command, which lands in
                                    QtUIWindow::openSaveProjectDialog */
                                 client.sendSaveProjectMessage();
+                            }
+                            else if (name == "model-plugin" || name == "motion-plugin") {
+                                /* Function 0 ("UI") of the bundled test plugin returns a UI window
+                                   layout instead of executing right away, so the shell opens the
+                                   IO plugin dialog built from that layout */
+                                const bool model = name == QStringLiteral("model-plugin");
+                                if (model) {
+                                    nanoem::DefaultFileManager::ModelIOPluginList plugins;
+                                    service.defaultFileManager()->getAllModelIOPlugins(plugins);
+                                    for (nanoem_rsize_t i = 0; i < plugins.size(); i++) {
+                                        if (QString::fromUtf8(plugins[i]->name()) ==
+                                            QStringLiteral("This is a test.")) {
+                                            client.sendExecuteModelPluginMessage(nanoem_u16_t(i), 0);
+                                            break;
+                                        }
+                                    }
+                                }
+                                else {
+                                    nanoem::DefaultFileManager::MotionIOPluginList plugins;
+                                    service.defaultFileManager()->getAllMotionIOPlugins(plugins);
+                                    /* plugin_motion reports an empty name (and is the only bundled
+                                       motion plugin), so there is nothing to match on */
+                                    if (plugins.size() > 0) {
+                                        client.sendExecuteMotionPluginMessage(0, 0);
+                                    }
+                                }
                             }
                             else if (name == "preference" || name == "preference-project" ||
                                 name == "preference-special") {

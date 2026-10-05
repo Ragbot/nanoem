@@ -37,6 +37,13 @@ public:
     void clear();
 
     const char *title() const NANOEM_DECL_NOEXCEPT;
+    /**
+     * @brief The unpacked layout the current widgets are built from.
+     *
+     *        ImGui renders through draw(); native shells walk the same tree themselves and need
+     *        the component pointers (they stay valid until the next reload()).
+     */
+    const Nanoem__Application__Plugin__UIWindow *window() const NANOEM_DECL_NOEXCEPT;
 
 private:
     void drawComponent(const Nanoem__Application__Plugin__UIComponent *component);

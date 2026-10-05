@@ -13,6 +13,7 @@
 #include "QtCameraCorrectionDialog.h"
 #include "QtCameraParametersDialog.h"
 #include "QtEffectParameterDialog.h"
+#include "QtIOPluginDialog.h"
 #include "QtModelDrawOrderDialog.h"
 #include "QtModelEdgeDialog.h"
 #include "QtModelOutsideParentDialog.h"
@@ -30,6 +31,8 @@
 #include "emapp/Model.h"
 #include "emapp/Project.h"
 #include "emapp/private/CommonInclude.h"
+
+#include "emapp/src/protoc/plugin.pb-c.h"
 
 namespace nanoem {
 namespace qt {
@@ -93,6 +96,13 @@ QtUIWindow::closeNativeDialogs()
     if (QtEffectParameterDialog *dialog = m_effectParameterDialog.data()) {
         dialog->close();
     }
+    for (QList<QPointer<QtIOPluginDialog>>::iterator it = m_ioPluginDialogs.begin();
+         it != m_ioPluginDialogs.end(); ++it) {
+        if (QtIOPluginDialog *dialog = it->data()) {
+            dialog->close();
+        }
+    }
+    m_ioPluginDialogs.clear();
 }
 
 void
@@ -493,14 +503,49 @@ bool
 QtUIWindow::openModelIOPluginDialog(Project *project, plugin::ModelIOPlugin *plugin, const ByteArray &input,
     const ByteArray &layout, int functionIndex)
 {
-    return m_impl->openModelIOPluginDialog(project, plugin, input, layout, functionIndex);
+    return openIOPluginDialog(project, plugin, nullptr, input, layout, functionIndex);
 }
 
 bool
 QtUIWindow::openMotionIOPluginDialog(Project *project, plugin::MotionIOPlugin *plugin, const ByteArray &input,
     const ByteArray &layout, int functionIndex)
 {
-    return m_impl->openMotionIOPluginDialog(project, plugin, input, layout, functionIndex);
+    return openIOPluginDialog(project, nullptr, plugin, input, layout, functionIndex);
+}
+
+bool
+QtUIWindow::openIOPluginDialog(Project *project, plugin::ModelIOPlugin *modelPlugin,
+    plugin::MotionIOPlugin *motionPlugin, const ByteArray &input, const ByteArray &layout, int functionIndex)
+{
+    Nanoem__Application__Plugin__UIWindow *window =
+        nanoem__application__plugin__uiwindow__unpack(g_protobufc_allocator, layout.size(), layout.data());
+    if (!window) {
+        return false;
+    }
+    const QString windowId(QString::fromUtf8(window->id));
+    /* ImGuiWindow kept one dialog per window id in its m_dialogWindows map: a second open of the
+       same window frees the layout unpacked for it and raises the dialog that is already up */
+    for (QList<QPointer<QtIOPluginDialog>>::iterator it = m_ioPluginDialogs.begin();
+         it != m_ioPluginDialogs.end();) {
+        QtIOPluginDialog *dialog = it->data();
+        if (!dialog) {
+            it = m_ioPluginDialogs.erase(it);
+            continue;
+        }
+        if (windowId == QString::fromUtf8(dialog->windowId())) {
+            nanoem__application__plugin__uiwindow__free_unpacked(window, g_protobufc_allocator);
+            dialog->raise();
+            dialog->activateWindow();
+            return true;
+        }
+        ++it;
+    }
+    auto *dialog = new QtIOPluginDialog(m_service, project, modelPlugin, motionPlugin, input, window, functionIndex,
+        m_service->modalDialogParentWidget());
+    dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    m_ioPluginDialogs.append(QPointer<QtIOPluginDialog>(dialog));
+    dialog->show();
+    return true;
 }
 
 void

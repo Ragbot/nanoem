@@ -10,6 +10,7 @@
 
 #include "emapp/internal/IUIWindow.h"
 
+#include <QList>
 #include <QPointer>
 
 namespace nanoem {
@@ -23,6 +24,7 @@ class QtBoneParametersDialog;
 class QtCameraCorrectionDialog;
 class QtCameraParametersDialog;
 class QtEffectParameterDialog;
+class QtIOPluginDialog;
 class QtModelDrawOrderDialog;
 class QtModelEdgeDialog;
 class QtModelOutsideParentDialog;
@@ -108,6 +110,8 @@ public:
 
 private:
     void closeNativeDialogs();
+    bool openIOPluginDialog(Project *project, plugin::ModelIOPlugin *modelPlugin,
+        plugin::MotionIOPlugin *motionPlugin, const ByteArray &input, const ByteArray &layout, int functionIndex);
 
     QtApplicationService *m_service;
     internal::IUIWindow *m_impl;
@@ -128,6 +132,7 @@ private:
     QPointer<QtBoneParametersDialog> m_boneParametersDialog;
     QPointer<QtCameraParametersDialog> m_cameraParametersDialog;
     QPointer<QtEffectParameterDialog> m_effectParameterDialog;
+    QList<QPointer<QtIOPluginDialog>> m_ioPluginDialogs;
 };
 
 } /* namespace qt */

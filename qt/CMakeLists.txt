@@ -15,6 +15,8 @@ set(QT_SHELL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/main.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtCameraPanel.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtCameraParametersDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtEffectParameterDialog.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtIOPluginDialog.cc
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/QtPluginUIWidget.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationCurveGraphDialog.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationCurveWidget.cc
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/QtInterpolationPanel.cc

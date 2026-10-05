@@ -144,6 +144,12 @@ PluginUI::title() const NANOEM_DECL_NOEXCEPT
     return m_title;
 }
 
+const Nanoem__Application__Plugin__UIWindow *
+PluginUI::window() const NANOEM_DECL_NOEXCEPT
+{
+    return m_window;
+}
+
 void
 PluginUI::drawComponent(const Nanoem__Application__Plugin__UIComponent *component)
 {
