@@ -1,6 +1,8 @@
 # build artifact
 /compile_commands.json
 /**/out
+/out*/
+*.bak
 
 # document
 /docs/_build

@@ -30,6 +30,9 @@ class QPushButton;
 class QRadioButton;
 class QSlider;
 class QSpinBox;
+class QCheckBox;
+class QSlider;
+class QSpinBox;
 class QStackedWidget;
 class QTabWidget;
 class QTimer;
@@ -126,6 +129,16 @@ private:
     void syncNumericTransformSpinBoxes();
     void rebuildSystemFields();
     QString translate(const char *key) const;
+    /* Material tab */
+    QWidget *createMaterialTab();
+    void syncMaterialTab();
+    void rebuildMaterialList();
+    void materialSelectionChanged();
+    void materialItemChanged(QListWidgetItem *item);
+    void rebuildMaterialDetail();
+    void appendMaterialPropertyPane(QVBoxLayout *layout, QWidget *parent, nanoem_model_material_t *materialPtr);
+    void appendBatchMaterialPropertyPane(QVBoxLayout *layout, QWidget *parent);
+    void toggleMaterial(int index);
 
     QtApplicationService *m_service;
     Project *m_project;
@@ -188,6 +201,39 @@ private:
     QListWidget *m_faceList;
     QWidget *m_faceDetail;
     QWidget *m_faceDetailChild;
+    /* Material tab */
+    QLabel *m_materialCountLabel;
+    QListWidget *m_materialList;
+    QWidget *m_materialDetail;
+    QWidget *m_materialDetailChild;
+    QLabel *m_materialNameLabel;
+    QComboBox *m_materialNameCombo;
+    QPushButton *m_materialNameButton;
+    QDoubleSpinBox *m_materialAmbientSpinBox[3];
+    QDoubleSpinBox *m_materialDiffuseSpinBox[4];
+    QDoubleSpinBox *m_materialSpecularSpinBox[3];
+    QDoubleSpinBox *m_materialSpecularPowerSpinBox;
+    QDoubleSpinBox *m_materialEdgeSpinBox;
+    QComboBox *m_materialPrimitiveCombo;
+    QComboBox *m_materialSpheremapCombo;
+    QCheckBox *m_materialToonCheckBox;
+    QCheckBox *m_materialEdgeCheckBox;
+    QCheckBox *m_materialCullingCheckBox;
+    QCheckBox *m_materialShadowCheckBox;
+    QCheckBox *m_materialSelfShadowCheckBox;
+    QCheckBox *m_materialVertexColorCheckBox;
+    QLineEdit *m_materialClobEdit;
+    QPushButton *m_materialApplyButton;
+    command::BatchChangeAllMaterialObjectsCommand::Parameter m_batchMaterialParameter;
+    int m_materialDetailKind;
+    nanoem_rsize_t m_materialDetailIndex;
+    nanoem_rsize_t m_materialDetailCount;
+    QLabel *m_materialAmbientLabel;
+    QLabel *m_materialDiffuseLabel;
+    QLabel *m_materialSpecularLabel;
+    QLabel *m_materialEdgeLabel;
+    QLabel *m_materialPrimitiveLabel;
+    QLabel *m_materialSpheremapLabel;
 };
 
 } /* namespace qt */
