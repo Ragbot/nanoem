@@ -1,0 +1,49 @@
+diff --git a/sokol_app.h b/sokol_app.h
+index 602df0d..6063d63 100644
+--- a/sokol_app.h
++++ b/sokol_app.h
+@@ -10394,7 +10394,14 @@ _SOKOL_PRIVATE bool _sapp_x11_parse_dropped_files_list(const char* src) {
+         return false;
+     }
+     else {
+-        return true;
++        /* the last entry of a text/uri-list is not required to be terminated with a CRLF,
++           so count whatever is left over once the list ran out. src_count is reset to 0 by
++           every line terminator, so anything greater than the 7 byte 'file://' prefix means
++           an unterminated path is sitting in the buffer. */
++        if ((src_count > 7) && (_sapp.drop.num_files < _sapp.drop.max_files)) {
++            _sapp.drop.num_files++;
++        }
++        return _sapp.drop.num_files > 0;
+     }
+ }
+ 
+diff --git a/sokol_audio.h b/sokol_audio.h
+index bdd6953..24c5c32 100644
+--- a/sokol_audio.h
++++ b/sokol_audio.h
+@@ -595,6 +595,7 @@ typedef struct saudio_desc {
+     void* user_data;        // optional user data argument for stream_userdata_cb
+     saudio_allocator allocator;     // optional allocation override functions
+     saudio_logger logger;           // optional logging function (default: NO LOGGING!)
++    const char* device_name;        // optional playback device name (ALSA backend), NULL or empty = system default
+ } saudio_desc;
+ 
+ /* setup sokol-audio */
+@@ -1467,7 +1468,15 @@ _SOKOL_PRIVATE void* _saudio_alsa_cb(void* param) {
+ 
+ _SOKOL_PRIVATE bool _saudio_alsa_backend_init(void) {
+     int dir; uint32_t rate;
+-    int rc = snd_pcm_open(&_saudio.backend.device, "default", SND_PCM_STREAM_PLAYBACK, 0);
++    const char* device_name = (_saudio.desc.device_name && _saudio.desc.device_name[0] != '\0')
++        ? _saudio.desc.device_name : "default";
++    int rc = snd_pcm_open(&_saudio.backend.device, device_name, SND_PCM_STREAM_PLAYBACK, 0);
++    if ((rc < 0) && (strcmp(device_name, "default") != 0)) {
++        /* the requested device may have disappeared (unplugged, ...); rather than leaving the
++           application without any sound at all, fall back to the system default device */
++        device_name = "default";
++        rc = snd_pcm_open(&_saudio.backend.device, device_name, SND_PCM_STREAM_PLAYBACK, 0);
++    }
+     if (rc < 0) {
+         _SAUDIO_ERROR(ALSA_SND_PCM_OPEN_FAILED);
+         return false;
